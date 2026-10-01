@@ -232,6 +232,7 @@ class TestWifiManager(unittest.TestCase):
             fsm = WifiManagerFSM(
                 interface="wlp108s0",
                 interfaces_file=str(tmp_interfaces),
+                runtime_dir=tmpdir,
             )
 
             bak = fsm.backup_interfaces()

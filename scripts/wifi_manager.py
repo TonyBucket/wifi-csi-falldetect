@@ -43,7 +43,7 @@ DEFAULT_MAX_FAILS = 3
 DEFAULT_CONNECT_TIMEOUT = 30.0
 
 DEFAULT_INTERFACES_FILE = "/etc/network/interfaces"
-RUNTIME_DIR = "/run/wifi_manager"
+DEFAULT_RUNTIME_DIR = "/run/wifi_manager" if os.name != "posix" or (hasattr(os, "geteuid") and os.geteuid() == 0) else "/tmp/wifi_manager"
 
 STATE_STA_CONNECTED = "STA_CONNECTED"
 STATE_AP_FALLBACK = "AP_FALLBACK"
@@ -945,6 +945,7 @@ class WifiManagerFSM:
         ap_ssid: str = DEFAULT_AP_SSID,
         ap_psk: str = DEFAULT_AP_PSK,
         portal_port: int = 80,
+        runtime_dir: Optional[str] = None,
     ) -> None:
         self.interface = interface
         self.ping_target = ping_target
@@ -954,6 +955,7 @@ class WifiManagerFSM:
         self.ap_ssid = ap_ssid
         self.ap_psk = ap_psk
         self.portal_port = portal_port
+        self.runtime_dir = Path(runtime_dir or DEFAULT_RUNTIME_DIR)
 
         self.current_state = STATE_STA_CONNECTED
         self.fail_count = 0
@@ -978,7 +980,7 @@ class WifiManagerFSM:
         )
 
         # Prepare runtime directory
-        Path(RUNTIME_DIR).mkdir(parents=True, exist_ok=True)
+        self.runtime_dir.mkdir(parents=True, exist_ok=True)
 
     def get_status(self) -> NetworkStatus:
         with self.lock:
@@ -1051,9 +1053,9 @@ class WifiManagerFSM:
             ]
         )
 
-        # 4. Generate configs in RUNTIME_DIR
-        hostapd_conf = Path(RUNTIME_DIR) / "hostapd.conf"
-        dnsmasq_conf = Path(RUNTIME_DIR) / "dnsmasq.conf"
+        # 4. Generate configs in runtime_dir
+        hostapd_conf = self.runtime_dir / "hostapd.conf"
+        dnsmasq_conf = self.runtime_dir / "dnsmasq.conf"
 
         hostapd_conf.write_text(
             generate_hostapd_conf(
@@ -1082,7 +1084,7 @@ class WifiManagerFSM:
                     "-C",
                     str(dnsmasq_conf),
                     "-x",
-                    f"{RUNTIME_DIR}/dnsmasq.pid",
+                    str(self.runtime_dir / "dnsmasq.pid"),
                     "-d",
                 ],
                 stdout=subprocess.DEVNULL,
