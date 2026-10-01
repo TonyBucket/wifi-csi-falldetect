@@ -27,6 +27,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("wifi_manager")
 
+# Ensure sbin directories are in PATH for iw, ifup, ifdown, hostapd, dnsmasq
+for p in ["/usr/local/sbin", "/usr/sbin", "/sbin"]:
+    if p not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = f"{p}:{os.environ.get('PATH', '')}"
+
 # Default Constants
 DEFAULT_IFACE = "wlp108s0"
 DEFAULT_AP_SSID = "Dragonfly"
@@ -348,7 +353,17 @@ def parse_iw_scan(scan_output: str) -> List[WifiNetwork]:
 
 def scan_wifi(interface: str) -> List[WifiNetwork]:
     """Trigger iw scan on interface."""
-    code, out, err = run_cmd(["iw", "dev", interface, "scan"], timeout=8.0)
+    cmd = ["iw", "dev", interface, "scan"]
+    code, out, err = run_cmd(cmd, timeout=8.0)
+
+    # If unprivileged and permission denied, try sudo -n if available
+    if code != 0 and ("Operation not permitted" in err or "Permission denied" in err):
+        if hasattr(os, "geteuid") and os.geteuid() != 0:
+            sudo_cmd = ["sudo", "-n", "iw", "dev", interface, "scan"]
+            s_code, s_out, s_err = run_cmd(sudo_cmd, timeout=8.0)
+            if s_code == 0:
+                return parse_iw_scan(s_out)
+
     if code != 0:
         logger.warning("iw scan failed (code %d): %s", code, err)
         return []
