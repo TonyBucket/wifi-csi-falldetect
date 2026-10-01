@@ -1,0 +1,10 @@
+menu "CSI transmitter"
+    config CSI_CHANNEL
+        int "Wi-Fi channel"
+        range 1 11
+        default 11
+    config CSI_TX_RATE_HZ
+        int "Probe rate Hz"
+        range 1 100
+        default 100
+endmenu

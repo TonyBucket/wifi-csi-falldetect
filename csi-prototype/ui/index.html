@@ -1,0 +1,4172 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESP32-S3 CSI · Giám Sát Té Ngã Không Gian</title>
+<style>
+:root {
+  --bg-primary: #070b11;
+  --bg-surface: #0e1724;
+  --bg-surface-elevated: #152234;
+  --bg-card: #101c2c;
+  --border-subtle: #1e3146;
+  --border-focus: #38bdf8;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+
+  /* State color tokens */
+  --c-normal: #10b981;
+  --c-normal-bg: rgba(16, 185, 129, 0.12);
+  --c-normal-border: #059669;
+
+  --c-moving: #f59e0b;
+  --c-moving-bg: rgba(245, 158, 11, 0.12);
+  --c-moving-border: #d97706;
+
+  --c-candidate: #f97316;
+  --c-candidate-bg: rgba(249, 115, 22, 0.16);
+  --c-candidate-border: #ea580c;
+
+  --c-alert: #ef4444;
+  --c-alert-bg: rgba(239, 68, 68, 0.22);
+  --c-alert-border: #dc2626;
+
+  --c-lost: #64748b;
+  --c-lost-bg: rgba(100, 116, 139, 0.12);
+  --c-lost-border: #475569;
+
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  line-height: 1.5;
+  color: var(--text-main);
+  background-color: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Custom Sleek Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(8, 13, 20, 0.4);
+}
+::-webkit-scrollbar-thumb {
+  background: #1e3146;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2b4563;
+}
+
+body {
+  margin: 0 auto;
+  max-width: 1440px;
+  padding: 16px 20px 48px;
+  background: radial-gradient(circle at 50% 0%, #111d2e 0%, #070b11 60%);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Header */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0284c7, #06b6d4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+  flex-shrink: 0;
+}
+.brand h1 {
+  font-size: clamp(17px, 3.5vw, 20px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  line-height: 1.25;
+}
+.brand-sub {
+  font-size: clamp(11px, 2.2vw, 12px);
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Badges & Tags */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+.badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.badge-live {
+  background: var(--c-normal-bg);
+  color: #6ee7b7;
+  border-color: var(--c-normal-border);
+}
+.badge-live .badge-dot { background: #10b981; box-shadow: 0 0 8px #10b981; }
+
+.badge-disconnected {
+  background: var(--c-lost-bg);
+  color: #cbd5e1;
+  border-color: var(--c-lost-border);
+}
+.badge-disconnected .badge-dot { background: #94a3b8; }
+
+.badge-replay {
+  background: rgba(168, 85, 247, 0.15);
+  color: #d8b4fe;
+  border-color: #9333ea;
+}
+.badge-replay .badge-dot { background: #a855f7; }
+
+/* Buttons */
+button {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  transition: all 0.18s ease;
+  user-select: none;
+  touch-action: manipulation;
+}
+button:hover:not(:disabled) {
+  background: #1e334a;
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+.btn-primary {
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  border-color: #38bdf8;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+}
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0369a1, #1d4ed8);
+  border-color: #60a5fa;
+}
+.btn-danger {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  border-color: #ef4444;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
+}
+.btn-danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #b91c1c, #991b1b);
+}
+.btn-icon-only {
+  padding: 8px;
+  border-radius: 8px;
+  min-width: 38px;
+}
+
+/* Toast Message */
+#message-bar {
+  display: none;
+  min-height: 22px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+#message-bar.info {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+#message-bar.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+#message-bar.warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+#message-bar.error {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+/* 1. GIANT STATUS HERO BANNER */
+.hero-banner {
+  background: var(--bg-surface);
+  border: 2px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.hero-banner::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  opacity: 0.15;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+.hero-main {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.hero-icon-wrap {
+  width: 76px;
+  height: 76px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.hero-icon-wrap svg {
+  width: 44px;
+  height: 44px;
+}
+
+.hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hero-state-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.hero-title {
+  font-size: clamp(20px, 4.5vw, 32px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.hero-desc {
+  font-size: clamp(12px, 2.5vw, 14px);
+  color: var(--text-muted);
+  max-width: 600px;
+  margin-top: 2px;
+}
+
+/* Candidate countdown progress bar in hero */
+.candidate-countdown-wrap {
+  margin-top: 10px;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 380px;
+}
+.candidate-countdown-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+}
+.candidate-countdown-fill {
+  height: 100%;
+  width: 100%;
+  background: #f97316;
+  border-radius: 9999px;
+  transition: width 0.1s linear;
+}
+.candidate-countdown-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fdba74;
+}
+
+/* Banner Variations */
+.hero-banner.banner-normal {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.35) 0%, #0d1a1f 100%);
+}
+.hero-banner.banner-normal .hero-icon-wrap {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.3);
+}
+.hero-banner.banner-normal .hero-title { color: #34d399; }
+.hero-banner.banner-normal .hero-state-label { color: #6ee7b7; }
+
+.hero-banner.banner-moving {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.35) 0%, #161814 100%);
+}
+.hero-banner.banner-moving .hero-icon-wrap {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.35);
+}
+.hero-banner.banner-moving .hero-title { color: #fbbf24; }
+.hero-banner.banner-moving .hero-state-label { color: #fde68a; }
+
+.hero-banner.banner-candidate {
+  border-color: #f97316;
+  background: linear-gradient(135deg, rgba(154, 52, 18, 0.45) 0%, #1a120f 100%);
+  animation: pulse-candidate 1.2s infinite ease-in-out;
+}
+.hero-banner.banner-candidate .hero-icon-wrap {
+  background: rgba(249, 115, 22, 0.25);
+  color: #fb923c;
+  box-shadow: 0 0 30px rgba(249, 115, 22, 0.5);
+}
+.hero-banner.banner-candidate .hero-title { color: #fb923c; }
+.hero-banner.banner-candidate .hero-state-label { color: #fed7aa; }
+.hero-banner.banner-candidate .candidate-countdown-wrap { display: flex; }
+
+@keyframes pulse-candidate {
+  0%, 100% { box-shadow: 0 8px 30px rgba(249, 115, 22, 0.25); border-color: #f97316; }
+  50% { box-shadow: 0 8px 45px rgba(249, 115, 22, 0.6); border-color: #fb923c; }
+}
+
+.hero-banner.banner-alert {
+  border-color: #ef4444;
+  background: linear-gradient(135deg, rgba(185, 28, 28, 0.6) 0%, #200808 100%);
+  animation: pulse-alert 0.8s infinite alternate ease-in-out;
+}
+.hero-banner.banner-alert .hero-icon-wrap {
+  background: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  box-shadow: 0 0 40px rgba(239, 68, 68, 0.7);
+  animation: shake 0.5s infinite ease-in-out;
+}
+.hero-banner.banner-alert .hero-title { color: #fecaca; }
+.hero-banner.banner-alert .hero-state-label { color: #fee2e2; }
+
+@keyframes pulse-alert {
+  from { box-shadow: 0 0 35px rgba(239, 68, 68, 0.4); border-color: #dc2626; }
+  to { box-shadow: 0 0 65px rgba(239, 68, 68, 0.85); border-color: #f87171; }
+}
+@keyframes shake {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-6deg); }
+  75% { transform: rotate(6deg); }
+}
+
+.hero-banner.banner-lost {
+  border-color: rgba(100, 116, 139, 0.35);
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, #0d121a 100%);
+}
+.hero-banner.banner-lost .hero-icon-wrap {
+  background: rgba(100, 116, 139, 0.15);
+  color: #94a3b8;
+}
+.hero-banner.banner-lost .hero-title { color: #94a3b8; }
+.hero-banner.banner-lost .hero-state-label { color: #64748b; }
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.btn-dismiss-alert {
+  display: none;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #fff;
+  border: 2px solid #fecaca;
+  padding: 14px 24px;
+  min-height: 48px;
+  font-size: clamp(14px, 2.5vw, 16px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  border-radius: 12px;
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.6);
+  cursor: pointer;
+  white-space: nowrap;
+  animation: pulse-button 1s infinite alternate;
+  touch-action: manipulation;
+}
+.btn-dismiss-alert:hover {
+  background: #dc2626;
+  transform: scale(1.03);
+}
+@keyframes pulse-button {
+  from { transform: scale(1); }
+  to { transform: scale(1.04); }
+}
+.hero-banner.banner-alert .btn-dismiss-alert {
+  display: inline-flex;
+}
+
+/* Dashboard Grid */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.95fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+@media (max-width: 900px) {
+  .dashboard-grid { grid-template-columns: 1fr; gap: 16px; }
+  .hero-banner { flex-direction: column; align-items: stretch; gap: 16px; padding: 20px 18px; }
+  .hero-actions { width: 100%; justify-content: flex-start; }
+  .btn-dismiss-alert { width: 100%; justify-content: center; }
+}
+
+/* Cards */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 20px;
+  position: relative;
+  margin-bottom: 20px;
+}
+.card:last-child { margin-bottom: 0; }
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+.card-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* 2. MOTION GAUGE (0 - 100) */
+.gauge-card {
+  display: flex;
+  flex-direction: column;
+}
+.gauge-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0 16px;
+  position: relative;
+}
+.gauge-svg-container {
+  width: 100%;
+  max-width: 320px;
+  position: relative;
+}
+.gauge-svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.gauge-center-info {
+  position: absolute;
+  top: 60%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.gauge-value {
+  font-size: 44px;
+  font-weight: 800;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  line-height: 1;
+  color: #fff;
+  letter-spacing: -0.03em;
+}
+.gauge-unit {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-weight: 600;
+}
+.gauge-state-badge {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  letter-spacing: 0.04em;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.gauge-zones {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+}
+.gauge-zone-item {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: center;
+  font-size: 11px;
+  transition: all 0.15s ease;
+}
+@media (max-width: 500px) {
+  .gauge-zones {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .gauge-zone-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    padding: 8px 12px;
+  }
+  .gauge-zone-name {
+    margin-bottom: 0;
+  }
+}
+.gauge-zone-name {
+  font-weight: 700;
+  display: block;
+  margin-bottom: 2px;
+}
+.gauge-zone-range {
+  font-family: ui-monospace, monospace;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 600;
+}
+.gauge-zone-raw {
+  font-family: ui-monospace, monospace;
+  font-size: 9.5px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.zone-still { border-left: 3px solid var(--c-normal); }
+.zone-still .gauge-zone-name { color: #34d399; }
+.zone-move { border-left: 3px solid var(--c-moving); }
+.zone-move .gauge-zone-name { color: #fbbf24; }
+.zone-spike { border-left: 3px solid var(--c-alert); }
+.zone-spike .gauge-zone-name { color: #f87171; }
+
+/* Real-time Telemetry Metrics Chips (Burst Ratio, Room Presence, Spectral Distance) */
+.telemetry-chips-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+@media (max-width: 860px) {
+  .telemetry-chips-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+.telemetry-chip {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+.telemetry-chip:hover {
+  border-color: #2b4563;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.chip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.chip-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.chip-title em {
+  font-style: normal;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+.chip-title em sub {
+  font-size: 9px;
+  vertical-align: sub;
+}
+.chip-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+.chip-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: rgba(100, 116, 139, 0.15);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.25);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.chip-badge.badge-ok {
+  background: var(--c-normal-bg);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+.chip-badge.badge-warning {
+  background: var(--c-candidate-bg);
+  color: #fb923c;
+  border-color: rgba(249, 115, 22, 0.4);
+}
+.chip-badge.badge-empty {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+.chip-badge.badge-occupied {
+  background: rgba(6, 182, 212, 0.15);
+  color: #38bdf8;
+  border-color: rgba(6, 182, 212, 0.35);
+}
+.chip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chip-value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.chip-value {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.chip-value-status {
+  font-size: 14.5px;
+  font-family: inherit;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+.chip-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: ui-monospace, monospace;
+}
+.chip-meter {
+  width: 100%;
+  height: 5px;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 9999px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.chip-meter-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #10b981, #06b6d4);
+  transition: width 0.25s ease, background 0.25s ease;
+}
+.chip-meter-spectral {
+  background: linear-gradient(90deg, #10b981, #38bdf8);
+}
+.chip-meter-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #f59e0b;
+  box-shadow: 0 0 4px #f59e0b;
+  z-index: 2;
+}
+.presence-indicator-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+.presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #64748b;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.presence-dot.dot-empty {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+.presence-dot.dot-occupied {
+  background: #06b6d4;
+  box-shadow: 0 0 8px #06b6d4;
+}
+.presence-desc {
+  font-size: 11px;
+  color: #cbd5e1;
+  line-height: 1.25;
+}
+.chip-footer {
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.3;
+}
+.status-empty {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.08) 0%, var(--bg-surface-elevated) 70%);
+}
+.status-occupied {
+  border-color: rgba(6, 182, 212, 0.35);
+  background: radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.08) 0%, var(--bg-surface-elevated) 70%);
+}
+
+/* 3. 30-SECOND HISTORY CHART */
+.chart-card {
+  display: flex;
+  flex-direction: column;
+}
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 240px;
+  background: #080e16;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+}
+#history-chart {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chart-line-indicator {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+}
+.line-m { background: #38bdf8; }
+.line-spike { background: #ef4444; border-top: 1px dashed #ef4444; }
+.line-move { background: #f59e0b; border-top: 1px dashed #f59e0b; }
+.line-still { background: #10b981; border-top: 1px dashed #10b981; }
+
+/* Chart mode toggle segmented control */
+.chart-mode-toggle {
+  display: inline-flex;
+  background: #09121c;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.btn-toggle-mode {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.btn-toggle-mode:hover {
+  color: #fff;
+}
+.btn-toggle-mode.active {
+  background: #172d42;
+  color: #38bdf8;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* 4 & 5. TEST FLOW & CALIBRATION RIGHT COLUMN */
+.action-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Safe Fall Test Section */
+.test-selection-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+@media (max-width: 440px) {
+  .test-selection-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+.test-option-card {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  touch-action: manipulation;
+}
+.test-option-card:hover {
+  background: #17283c;
+  border-color: #38bdf8;
+}
+.test-option-card.selected {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: #0284c7;
+  box-shadow: 0 0 12px rgba(2, 132, 199, 0.25);
+}
+.test-option-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13px;
+}
+.test-option-icon {
+  font-size: 18px;
+}
+.test-option-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+/* Calibration Quick Launcher */
+.calib-summary-box {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.calib-summary-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.calib-summary-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+.calib-summary-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: ui-monospace, monospace;
+}
+
+/* 7. TECHNICAL ACCORDION */
+.accordion {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: all 0.25s ease;
+  margin-top: 20px;
+}
+.accordion summary {
+  padding: 16px 20px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  list-style: none;
+}
+.accordion summary::-webkit-details-marker { display: none; }
+.accordion summary:hover {
+  background: var(--bg-surface-elevated);
+  color: #fff;
+}
+.accordion-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.accordion-chevron {
+  transition: transform 0.25s ease;
+}
+.accordion[open] .accordion-chevron {
+  transform: rotate(180deg);
+}
+.accordion-content {
+  padding: 20px;
+  border-top: 1px solid var(--border-subtle);
+  background: #091018;
+}
+
+/* Tech metrics grid */
+.tech-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.tech-metric {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.tech-metric-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+.tech-metric-value {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  color: #fff;
+  margin-top: 3px;
+}
+.tech-metric-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Hardware Connection Box */
+.conn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 768px) {
+  .conn-grid { grid-template-columns: 1fr; }
+}
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+input, select, textarea {
+  background: #080d14;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: #fff;
+  padding: 8px 12px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--border-focus);
+}
+.input-row {
+  display: flex;
+  gap: 8px;
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.checkbox-label input {
+  width: auto;
+  cursor: pointer;
+}
+
+/* Terminal Log */
+.terminal {
+  background: #06090e;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: #94a3b8;
+  max-height: 180px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+/* MODALS */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 7, 13, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: fadeIn 0.2s ease-out;
+}
+.modal-backdrop.active { display: flex; }
+
+.modal-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px;
+  max-width: 520px;
+  width: 95%;
+  max-height: min(90vh, 90dvh);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  position: relative;
+  margin: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-subtle) transparent;
+}
+.modal-box::-webkit-scrollbar {
+  width: 6px;
+}
+.modal-box::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 9999px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.modal-title-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.modal-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.25;
+}
+.modal-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.modal-close-btn {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  user-select: none;
+  touch-action: manipulation;
+}
+.modal-close-btn:hover {
+  background: #1e334a;
+  color: #fff;
+  border-color: #3b82f6;
+}
+.modal-close-btn:active {
+  transform: scale(0.96);
+}
+
+.btn-apply-calib {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  touch-action: manipulation;
+  transition: all 0.18s ease;
+}
+.btn-apply-calib:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.45);
+}
+.btn-apply-calib:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.calib-threshold-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.calib-card {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  padding: 12px 10px;
+  border-radius: 10px;
+  text-align: center;
+  transition: border-color 0.15s ease;
+}
+.calib-card-still { border-top: 3px solid #10b981; }
+.calib-card-move { border-top: 3px solid #f59e0b; }
+.calib-card-spike { border-top: 3px solid #ef4444; }
+
+@media (max-width: 520px) {
+  .calib-threshold-cards {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .calib-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .calib-card-still { border-left: 4px solid #10b981; }
+  .calib-card-move { border-left: 4px solid #f59e0b; }
+  .calib-card-spike { border-left: 4px solid #ef4444; }
+  .calib-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .calib-card-values {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+  }
+}
+
+/* Giant Countdown Overlay */
+.countdown-container {
+  text-align: center;
+  padding: 20px 0;
+}
+.countdown-number {
+  font-size: 96px;
+  font-weight: 900;
+  font-family: ui-monospace, monospace;
+  color: #38bdf8;
+  line-height: 1;
+  text-shadow: 0 0 40px rgba(56, 189, 248, 0.6);
+  animation: zoom-pop 0.85s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+.countdown-action-label {
+  font-size: 32px;
+  font-weight: 800;
+  color: #fbbf24;
+  margin-top: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.countdown-subtext {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+@keyframes zoom-pop {
+  0% { transform: scale(0.65); opacity: 0; }
+  40% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Calibration Steps */
+.wizard-steps {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  position: relative;
+}
+.wizard-step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 600;
+  z-index: 2;
+  text-align: center;
+}
+.wizard-step-item.active { color: #38bdf8; }
+.wizard-step-item.completed { color: #34d399; }
+.wizard-step-bubble {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-surface-elevated);
+  border: 2px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+.wizard-step-item.active .wizard-step-bubble {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.5);
+}
+.wizard-step-item.completed .wizard-step-bubble {
+  background: #059669;
+  border-color: #34d399;
+  color: #fff;
+}
+.wizard-line {
+  position: absolute;
+  top: 16px;
+  left: 36px;
+  right: 36px;
+  height: 2px;
+  background: var(--border-subtle);
+  z-index: 1;
+}
+
+.wizard-body {
+  text-align: center;
+  padding: 10px 0 20px;
+}
+.wizard-timer {
+  font-size: 56px;
+  font-weight: 800;
+  font-family: ui-monospace, monospace;
+  color: #38bdf8;
+  margin: 14px 0 8px;
+}
+.wizard-progress-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+  margin: 12px 0 20px;
+}
+.wizard-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #0284c7, #38bdf8);
+  border-radius: 9999px;
+  transition: width 0.2s linear;
+}
+
+@media (max-width: 480px) {
+  .modal-backdrop {
+    padding: 8px;
+  }
+  .modal-box {
+    width: 100%;
+    padding: 18px 14px;
+    border-radius: 14px;
+    max-height: 94dvh;
+  }
+  .wizard-steps {
+    margin-bottom: 18px;
+  }
+  .wizard-step-item {
+    font-size: 10px;
+    gap: 4px;
+  }
+  .wizard-step-bubble {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+  .wizard-line {
+    top: 14px;
+    left: 24px;
+    right: 24px;
+  }
+  .wizard-timer {
+    font-size: 42px;
+    margin: 10px 0 6px;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">
+      <!-- Shield / Wave Icon -->
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <path d="M8 11h.01M12 11h.01M16 11h.01"/>
+      </svg>
+    </div>
+    <div>
+      <h1>ESP32-S3 CSI · Giám Sát Té Ngã</h1>
+      <div class="brand-sub">Hệ thống nhận diện cử động &amp; ngã không gian qua sóng Wi-Fi 100Hz</div>
+    </div>
+  </div>
+
+  <div class="header-actions">
+    <button id="btn-audio-toggle" class="btn-icon-only" title="Bật/Tắt âm thanh thông báo &amp; còi báo" onclick="toggleAudio()">
+      <svg id="svg-sound-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+      </svg>
+      <svg id="svg-sound-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none; color:#ef4444;">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+        <line x1="23" y1="9" x2="17" y2="15"/>
+        <line x1="17" y1="9" x2="23" y2="15"/>
+      </svg>
+    </button>
+    <button id="btn-empty-room-capture" onclick="captureEmptyRoom()" title="Chụp mẫu phổ tĩnh phòng trống trong 2 giây để cập nhật baseline hiện diện">
+      <span id="btn-empty-room-icon">🏠</span>
+      <span id="btn-empty-room-text">Chụp mẫu phòng trống (2s)</span>
+    </button>
+    <button onclick="openCalibrationWizard()" title="Hiệu chuẩn ngưỡng sóng thích ứng môi trường">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      Hiệu chuẩn
+    </button>
+    <span class="badge badge-disconnected" id="conn-badge">
+      <span class="badge-dot"></span>
+      <span id="conn-text">DISCONNECTED</span>
+    </span>
+  </div>
+</header>
+
+<div id="message-bar" role="status"></div>
+
+<!-- 1. GIANT STATUS HERO BANNER -->
+<section class="hero-banner banner-lost" id="hero-banner">
+  <div class="hero-main">
+    <div class="hero-icon-wrap" id="hero-icon-wrap">
+      <!-- Dynamic SVG Icons -->
+      <svg id="icon-normal" style="display:none;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <polyline points="9 12 11 14 15 10"/>
+      </svg>
+      <svg id="icon-moving" style="display:none;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="5" r="2.5"/>
+        <path d="m9 20 3-6 2 3 3 3M6 12l4-2 3 3 4-2"/>
+      </svg>
+      <svg id="icon-candidate" style="display:none;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <svg id="icon-alert" style="display:none;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        <path d="M2 8c0-2.2 1.8-4 4-4"/>
+        <path d="M22 8c0-2.2-1.8-4-4-4"/>
+      </svg>
+      <svg id="icon-lost" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="1" y1="1" x2="23" y2="23"/>
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+        <path d="M10.71 5.05A16 16 0 0 1 22.58 9"/>
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+        <line x1="12" y1="20" x2="12.01" y2="20"/>
+      </svg>
+    </div>
+
+    <div class="hero-text">
+      <div class="hero-state-label" id="hero-state-label">TRẠNG THÁI HỆ THỐNG</div>
+      <div class="hero-title" id="hero-title">MẤT TÍN HIỆU CSI</div>
+      <div class="hero-desc" id="hero-desc">Đang đợi kết nối cổng Serial hoặc không có luồng dữ liệu CSI từ bộ thu RX.</div>
+
+      <div class="candidate-countdown-wrap" id="candidate-countdown-wrap">
+        <div class="candidate-countdown-bar">
+          <div class="candidate-countdown-fill" id="candidate-progress"></div>
+        </div>
+        <div class="candidate-countdown-text" id="candidate-text">Đang kiểm tra bất động sau va chạm: 3.0s</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-actions">
+    <!-- Big Alert Dismissal Button -->
+    <button class="btn-dismiss-alert" id="btn-ack" onclick="acknowledgeAlert()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+      TÔI ỔN — HỦY BÁO ĐỘNG
+    </button>
+  </div>
+</section>
+
+<!-- MAIN CONTENT GRID -->
+<main class="dashboard-grid">
+  <!-- LEFT: TELEMETRY & HISTORY -->
+  <div>
+    <!-- 2. MOTION GAUGE (0 - 100) -->
+    <section class="card gauge-card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+            </svg>
+            Thanh Đo Mức Biến Thiên Vận Động
+          </h2>
+          <div class="card-subtitle">Chỉ số chuyển động chuẩn hóa thời gian thực M(t)</div>
+        </div>
+        <span class="badge" id="gauge-numeric-tag" style="background:#0c1926; border:1px solid #1e3146; font-family:monospace;">
+          M(t) thô: <strong id="m-raw-val">0.0000</strong>
+        </span>
+      </div>
+
+      <div class="gauge-wrapper">
+        <div class="gauge-svg-container">
+          <svg class="gauge-svg" viewBox="0 0 240 140">
+            <defs>
+              <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#10b981" />
+                <stop offset="25%" stop-color="#34d399" />
+                <stop offset="50%" stop-color="#f59e0b" />
+                <stop offset="80%" stop-color="#f97316" />
+                <stop offset="100%" stop-color="#ef4444" />
+              </linearGradient>
+            </defs>
+            <!-- Background Arc (Radius 90, Center 120, 120) -->
+            <path d="M 30 120 A 90 90 0 0 1 210 120" fill="none" stroke="#132337" stroke-width="18" stroke-linecap="round" />
+            <!-- Active Progress Arc -->
+            <path id="gauge-arc" d="M 30 120 A 90 90 0 0 1 210 120" fill="none" stroke="url(#gaugeGrad)" stroke-width="18" stroke-linecap="round"
+                  stroke-dasharray="282.7" stroke-dashoffset="282.7" style="transition: stroke-dashoffset 0.15s ease-out;" />
+            <!-- Indicator Needle Tick -->
+            <circle id="gauge-pin" cx="120" cy="120" r="5" fill="#fff" />
+          </svg>
+          <div class="gauge-center-info">
+            <div class="gauge-value" id="gauge-score">0</div>
+            <div class="gauge-unit">Thang điểm 0 - 100</div>
+            <div class="gauge-state-badge" id="gauge-state-desc">Yên tĩnh (Still)</div>
+          </div>
+        </div>
+
+        <div class="gauge-zones">
+          <div class="gauge-zone-item zone-still">
+            <span class="gauge-zone-name">Yên Tĩnh (Still)</span>
+            <span class="gauge-zone-range">0 → &lt; 20</span>
+            <div class="gauge-zone-raw">M &lt; <span id="lbl-raw-still">0.025</span></div>
+          </div>
+          <div class="gauge-zone-item zone-move">
+            <span class="gauge-zone-name">Vận Động (Move)</span>
+            <span class="gauge-zone-range">20 → &lt; 80</span>
+            <div class="gauge-zone-raw"><span id="lbl-raw-still2">0.025</span> → <span id="lbl-raw-spike">0.180</span></div>
+          </div>
+          <div class="gauge-zone-item zone-spike">
+            <span class="gauge-zone-name">Va Chạm (Spike)</span>
+            <span class="gauge-zone-range">&ge; 80</span>
+            <div class="gauge-zone-raw">M &ge; <span id="lbl-raw-spike2">0.180</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-time Telemetry Metrics Chips (Burst Ratio, Room Presence, Spectral Distance) -->
+      <div class="telemetry-chips-row">
+        <!-- 1. Burst Ratio (B) -->
+        <div class="telemetry-chip" id="chip-burst">
+          <div class="chip-header">
+            <div class="chip-title-wrap">
+              <span class="chip-icon">⚡</span>
+              <span class="chip-title">Burst Ratio <em>(B)</em></span>
+            </div>
+            <span class="chip-badge" id="badge-burst-level">Ổn định</span>
+          </div>
+          <div class="chip-body">
+            <div class="chip-value-row">
+              <span class="chip-value" id="val-burst-ratio">—</span>
+              <span class="chip-sub">dải [0.0 - 1.0]</span>
+            </div>
+            <div class="chip-meter">
+              <div class="chip-meter-fill" id="meter-burst-fill" style="width: 0%;"></div>
+              <div class="chip-meter-mark" style="left: 65%;" title="Ngưỡng bùng phát (0.65)"></div>
+            </div>
+          </div>
+          <div class="chip-footer" id="desc-burst-ratio">Tỉ số bùng phát động năng ngắn hạn</div>
+        </div>
+
+        <!-- 2. Room Presence -->
+        <div class="telemetry-chip" id="chip-presence">
+          <div class="chip-header">
+            <div class="chip-title-wrap">
+              <span class="chip-icon">🏠</span>
+              <span class="chip-title">Phòng trống / Hiện diện</span>
+            </div>
+            <span class="chip-badge" id="badge-presence-status">UNKNOWN</span>
+          </div>
+          <div class="chip-body">
+            <div class="chip-value-row">
+              <span class="chip-value chip-value-status" id="val-room-presence">Chưa xác định</span>
+            </div>
+            <div class="presence-indicator-row">
+              <span class="presence-dot" id="presence-dot"></span>
+              <span class="presence-desc" id="desc-room-presence">Cần chụp mẫu phòng trống</span>
+            </div>
+          </div>
+          <div class="chip-footer">Trạng thái hiện diện theo chuẩn phổ</div>
+        </div>
+
+        <!-- 3. Spectral Distance (D_E) -->
+        <div class="telemetry-chip" id="chip-spectral">
+          <div class="chip-header">
+            <div class="chip-title-wrap">
+              <span class="chip-icon">📡</span>
+              <span class="chip-title">Khoảng cách phổ <em>(D<sub>E</sub>)</em></span>
+            </div>
+            <span class="chip-badge" id="badge-spectral-level">Baseline</span>
+          </div>
+          <div class="chip-body">
+            <div class="chip-value-row">
+              <span class="chip-value" id="val-spectral-dist">—</span>
+              <span class="chip-sub">ngưỡng &lt; <span id="lbl-spectral-thresh">0.35</span></span>
+            </div>
+            <div class="chip-meter">
+              <div class="chip-meter-fill chip-meter-spectral" id="meter-spectral-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+          <div class="chip-footer" id="desc-spectral-dist">Độ lệch vector sóng tới mẫu nền</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. ĐỒ THỊ LỊCH SỬ 30S -->
+    <section class="card chart-card">
+      <div class="card-header" style="flex-wrap:wrap; gap:10px;">
+        <div>
+          <h2 class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            Lịch Sử Biến Thiên 30 Giây Gần Nhất
+          </h2>
+          <div class="card-subtitle">Theo dõi liên tục với các đường ngưỡng tự động và mốc biến cố</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <!-- Chart Mode Switcher -->
+          <div class="chart-mode-toggle" id="chart-mode-toggle">
+            <button type="button" class="btn-toggle-mode active" id="btn-chart-mapped" onclick="setChartMode('mapped')">
+              Trực quan (0–100)
+            </button>
+            <button type="button" class="btn-toggle-mode" id="btn-chart-raw" onclick="setChartMode('raw')">
+              Đặc trưng thô M(t)
+            </button>
+          </div>
+          <span class="badge" style="font-size:11px; background:#09121c; color:#94a3b8; border:1px solid #1e3146;">
+            Cửa sổ 30s · 100Hz
+          </span>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <canvas id="history-chart" width="800" height="240"></canvas>
+      </div>
+
+      <div class="chart-legend">
+        <div class="chart-legend-item">
+          <span class="chart-line-indicator line-m"></span>
+          <span id="chart-legend-m">Đường điểm số M(t) [0-100]</span>
+        </div>
+        <div class="chart-legend-item">
+          <span class="chart-line-indicator line-spike"></span>
+          <span id="chart-legend-spike">Ngưỡng Va Chạm: 80 (T_spike)</span>
+        </div>
+        <div class="chart-legend-item">
+          <span class="chart-line-indicator line-move"></span>
+          <span id="chart-legend-move">Ngưỡng Vận Động: 50 (T_move)</span>
+        </div>
+        <div class="chart-legend-item">
+          <span class="chart-line-indicator line-still"></span>
+          <span id="chart-legend-still">Ngưỡng Yên Tĩnh: 20 (T_still)</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- RIGHT: ACTION CENTER (SAFE TEST & CALIBRATION) -->
+  <aside class="action-panel">
+    <!-- 5. QUY TRÌNH TEST TÉ NGÃ AN TOÀN -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <path d="M9 13v6"/>
+              <path d="M12 11v8"/>
+              <path d="M15 15v4"/>
+            </svg>
+            Thử Nghiệm Té Ngã An Toàn
+          </h2>
+          <div class="card-subtitle">Quy trình kiểm thử có đếm ngược âm thanh 3-2-1</div>
+        </div>
+      </div>
+
+      <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">
+        Chọn bài test kiểm thử FSM, bấm nút và chuẩn bị thực hiện động tác khi có hiệu lệnh.
+      </p>
+
+      <div class="test-selection-grid">
+        <div class="test-option-card selected" id="test-option-walk" onclick="selectTestScenario('walk', this)">
+          <div class="test-option-header">
+            <span class="test-option-icon">🚶</span>
+            <span>Đi lại thường</span>
+          </div>
+          <div class="test-option-desc">Kiểm tra FSM ghi nhận MOVING, không báo ngã</div>
+        </div>
+
+        <div class="test-option-card" id="test-option-sit" onclick="selectTestScenario('sit', this)">
+          <div class="test-option-header">
+            <span class="test-option-icon">🪑</span>
+            <span>Ngồi xuống ghế</span>
+          </div>
+          <div class="test-option-desc">Hạ thấp người có chủ đích, không ngã</div>
+        </div>
+
+        <div class="test-option-card" id="test-option-lie" onclick="selectTestScenario('lie', this)">
+          <div class="test-option-header">
+            <span class="test-option-icon">🛏️</span>
+            <span>Nằm chủ động</span>
+          </div>
+          <div class="test-option-desc">Nằm từ từ xuống giường, không tạo xung va đập</div>
+        </div>
+
+        <div class="test-option-card" id="test-option-fall" onclick="selectTestScenario('fall', this)">
+          <div class="test-option-header">
+            <span class="test-option-icon">💥</span>
+            <span>Ngã lên nệm</span>
+          </div>
+          <div class="test-option-desc">Mô phỏng ngã lên nệm mềm an toàn để test còi</div>
+        </div>
+
+        <div class="test-option-card" id="test-option-exit_room" onclick="selectTestScenario('exit_room', this)">
+          <div class="test-option-header">
+            <span class="test-option-icon">🚪</span>
+            <span>Rời vùng đo</span>
+          </div>
+          <div class="test-option-desc">Đi từ từ hoặc đi nhanh ra ngoài phòng để kiểm tra hệ thống có bị báo động giả ngã không</div>
+        </div>
+
+        <div class="test-option-card" id="test-option-fast_walk_stop" onclick="selectTestScenario('fast_walk_stop', this)">
+          <div class="test-option-header">
+            <span class="test-option-icon">🏃</span>
+            <span>Đi nhanh rồi dừng lại</span>
+          </div>
+          <div class="test-option-desc">Đi nhanh, dậm chân mạnh rồi dừng đứng yên để kiểm tra phân biệt nhịp bước chân với ngã</div>
+        </div>
+
+        <div class="test-option-card" id="test-option-stumble" onclick="selectTestScenario('stumble', this)">
+          <div class="test-option-header">
+            <span class="test-option-icon">⚠️</span>
+            <span>Vấp trượt / Loạng choạng</span>
+          </div>
+          <div class="test-option-desc">Mô phỏng hụt chân hoặc ngã có đệm đỡ an toàn</div>
+        </div>
+      </div>
+
+      <button id="btn-start-test" class="btn-primary" style="width:100%; padding:12px;" onclick="startSafeFallTest()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        Bắt Đầu Test Có Đếm Ngược (3-2-1)
+      </button>
+
+      <div id="test-run-status" style="margin-top:10px; font-size:12px; color:#94a3b8; text-align:center;">
+        Chưa có lượt test nào gần đây.
+      </div>
+    </section>
+
+    <!-- 4. QUY TRÌNH HIỆU CHUẨN (CALIBRATION SUMMARY CARD) -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 20v-6M6 20V10M18 20V4"/>
+            </svg>
+            Hiệu Chuẩn Ngưỡng Sóng
+          </h2>
+          <div class="card-subtitle">Học độ nhiễu nền và biên độ chuyển động của phòng</div>
+        </div>
+      </div>
+
+      <div class="calib-summary-box">
+        <div class="calib-summary-info">
+          <div class="calib-summary-title" id="calib-status-text">Đã hiệu chuẩn (Chuẩn máy chủ)</div>
+          <div class="calib-summary-detail" id="calib-param-summary">
+            M(t): Still 0.025 · Move 0.065 · Spike 0.180
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <button id="btn-empty-room-calib" onclick="captureEmptyRoom()" title="Chụp mẫu phổ tĩnh phòng trống trong 2 giây" style="white-space:nowrap; border-color:rgba(56, 189, 248, 0.4);">
+            🏠 Chụp mẫu phòng trống (2s)
+          </button>
+          <button onclick="openCalibrationWizard()" style="white-space:nowrap;">
+            Hiệu chuẩn lại
+          </button>
+        </div>
+      </div>
+      <p style="font-size:11px; color:var(--text-dim); margin-top:8px;">
+        Nên hiệu chuẩn lại khi di chuyển vị trí bàn ghế hoặc đổi phòng thử nghiệm.
+      </p>
+    </section>
+
+    <!-- RECORDING & QUICK CONTROLS -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="3" fill="currentColor"/>
+            </svg>
+            Ghi Lưu Dữ Liệu Thực Nghiệm
+          </h2>
+          <div class="card-subtitle">Ghi tệp .jsonl chứa khung CSI raw và nhãn ground truth</div>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:8px;">
+        <label for="rec-name">Tên phiên ghi:</label>
+        <input id="rec-name" placeholder="csi_session_20260928" maxlength="64" autocomplete="off">
+      </div>
+
+      <div class="input-row" style="margin-top:10px;">
+        <button id="btn-rec-start" class="btn-primary" style="flex:1;" onclick="startManualRecord()">
+          ● Bắt đầu ghi
+        </button>
+        <button id="btn-rec-stop" class="btn-danger" style="flex:1;" onclick="stopManualRecord()" disabled>
+          ■ Dừng ghi
+        </button>
+      </div>
+
+      <div id="rec-status-indicator" style="margin-top:8px; font-size:12px; color:var(--text-muted);">
+        Trạng thái ghi: Chưa hoạt động.
+      </div>
+    </section>
+  </aside>
+</main>
+
+<!-- 7. THÔNG SỐ KỸ THUẬT (ACCORDION DÀNH CHO KỸ SƯ) -->
+<details class="accordion" id="tech-accordion">
+  <summary>
+    <div class="accordion-title-wrap">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+        <line x1="6" y1="6" x2="6.01" y2="6"/>
+        <line x1="6" y1="18" x2="6.01" y2="18"/>
+      </svg>
+      <span>Thông Số Kỹ Thuật &amp; Cấu Hình Phần Cứng (Dành Cho Kỹ Sư)</span>
+    </div>
+    <svg class="accordion-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  </summary>
+
+  <div class="accordion-content">
+    <!-- Tech Metrics Grid -->
+    <div class="tech-metrics">
+      <div class="tech-metric">
+        <div class="tech-metric-label">Tốc độ CSI thực tế</div>
+        <div class="tech-metric-value" id="lbl-rx-rate">— Hz</div>
+        <div class="tech-metric-sub">Mục tiêu: 100 Hz</div>
+      </div>
+      <div class="tech-metric">
+        <div class="tech-metric-label">Độ trễ mẫu (Age)</div>
+        <div class="tech-metric-value" id="lbl-sample-age">— ms</div>
+        <div class="tech-metric-sub">&lt; 300 ms là đạt chuẩn</div>
+      </div>
+      <div class="tech-metric">
+        <div class="tech-metric-label">Mất gói chuỗi (Sequence Gaps)</div>
+        <div class="tech-metric-value" id="lbl-seq-gaps">0</div>
+        <div class="tech-metric-sub">Số frame thất lạc trên bus</div>
+      </div>
+      <div class="tech-metric">
+        <div class="tech-metric-label">Lỗi khung (Frame Errors)</div>
+        <div class="tech-metric-value" id="lbl-frame-err">0</div>
+        <div class="tech-metric-sub">Parser CRC / MAC sai</div>
+      </div>
+      <div class="tech-metric">
+        <div class="tech-metric-label">Firmware Drops</div>
+        <div class="tech-metric-value" id="lbl-drops">0</div>
+        <div class="tech-metric-sub">Queue full / oversize</div>
+      </div>
+      <div class="tech-metric">
+        <div class="tech-metric-label">Subcarrier Pair</div>
+        <div class="tech-metric-value" id="lbl-pair">Pair 2</div>
+        <div class="tech-metric-sub">Int8 Real/Imag units</div>
+      </div>
+    </div>
+
+    <!-- Serial Connection & Device Lock Form -->
+    <div class="conn-grid">
+      <div class="card" style="margin-bottom:0; background:#0c1520;">
+        <h3 style="font-size:13px; font-weight:700; margin-bottom:12px; color:#e2e8f0;">Cấu Hình Cổng Serial Bộ Thu (RX)</h3>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label for="sel-port">Cổng Serial phần cứng:</label>
+          <div class="input-row">
+            <select id="sel-port" style="flex:1;"></select>
+            <button onclick="fetchPorts()" style="white-space:nowrap;">Quét lại</button>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:10px;">
+          <label for="txt-rx-mac">MAC Board Thu (RX USB):</label>
+          <input id="txt-rx-mac" value="30:30:f9:67:34:34" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="form-group" style="margin-bottom:12px;">
+          <label for="txt-tx-mac">MAC Board Phát (TX Wi-Fi):</label>
+          <input id="txt-tx-mac" value="98:c3:77:b4:22:44" autocomplete="off" spellcheck="false">
+        </div>
+
+        <label class="checkbox-label" style="margin-bottom:14px;">
+          <input type="checkbox" id="chk-verify-mac">
+          <span>Tôi đã xác nhận đúng cổng và MAC của RX &amp; TX</span>
+        </label>
+
+        <div class="input-row">
+          <button id="btn-connect" class="btn-primary" onclick="connectSerial()" disabled>Mở Cổng RX</button>
+          <button id="btn-disconnect" class="btn-danger" onclick="disconnectSerial()" disabled>Ngắt Kết Nối</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:0; background:#0c1520;">
+        <h3 style="font-size:13px; font-weight:700; margin-bottom:12px; color:#e2e8f0;">Nhật Ký Sự Kiện Giao Tiếp (Terminal Event Log)</h3>
+        <div class="terminal" id="terminal-events">Đang đợi sự kiện hệ thống...</div>
+        <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
+          <small style="color:var(--text-dim);" id="event-summary-text">0 sự kiện ghi nhận</small>
+          <button onclick="clearEventLogs()" style="padding:4px 10px; font-size:11px;">Xóa log</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</details>
+
+<!-- MODAL: SAFE FALL TEST COUNTDOWN & EXECUTION OVERLAY -->
+<div class="modal-backdrop" id="modal-test-overlay">
+  <div class="modal-box" id="test-modal-box">
+    <div class="modal-header" style="margin-bottom:12px;">
+      <div class="modal-title-wrap">
+        <div class="modal-title-icon" style="background:rgba(249, 115, 22, 0.15); color:#fb923c;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="modal-title" style="font-size:15px;">Thử Nghiệm Té Ngã An Toàn</h3>
+          <p class="modal-subtitle">Ghi nhận dữ liệu kiểm thử FSM</p>
+        </div>
+      </div>
+      <button type="button" class="modal-close-btn" id="btn-test-close" onclick="abortSafeFallTest()" aria-label="Đóng test modal">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+        <span>Đóng</span>
+      </button>
+    </div>
+
+    <!-- Step 1: Countdown -->
+    <div id="test-countdown-view" class="countdown-container">
+      <div class="countdown-subtext" id="test-modal-scenario-name">BÀI TEST: MÔ PHỎNG TÉ NGÃ</div>
+      <div class="countdown-number" id="test-countdown-num">3</div>
+      <div class="countdown-action-label" id="test-countdown-label">CHUẨN BỊ</div>
+      <div style="margin-top:20px;">
+        <button type="button" class="btn-danger" style="padding:8px 18px; font-size:12px;" onclick="abortSafeFallTest('user_aborted_countdown')">
+          ✕ Hủy bỏ đếm ngược
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: In-Progress Recording -->
+    <div id="test-recording-view" style="display:none; text-align:center;">
+      <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(239, 68, 68, 0.2); border:1px solid #ef4444; color:#fca5a5; padding:6px 14px; border-radius:9999px; font-size:12px; font-weight:700; margin-bottom:12px;">
+        <span style="width:8px; height:8px; border-radius:50%; background:#ef4444; animation:pulse-candidate 0.8s infinite;"></span>
+        ĐANG GHI DỮ LIỆU TEST TỰ ĐỘNG
+      </div>
+      <h3 style="font-size:22px; font-weight:800; margin-bottom:6px;" id="test-live-action-text">HÃY TÉ NGÃ LÊN NỆM NGAY</h3>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">
+        Thời gian test còn lại: <strong id="test-remain-sec" style="color:#38bdf8; font-family:monospace; font-size:16px;">15.0s</strong>
+      </p>
+
+      <div style="background:#09121c; border:1px solid var(--border-subtle); border-radius:10px; padding:12px; margin-bottom:20px; text-align:left;">
+        <div style="font-size:11px; text-transform:uppercase; color:var(--text-dim); margin-bottom:4px;">Phản xạ thuật toán FSM hiện thời:</div>
+        <div style="font-size:16px; font-weight:700;" id="test-fsm-status-stream">BÌNH THƯỜNG (NORMAL)</div>
+      </div>
+
+      <div class="input-row">
+        <button class="btn-primary" style="flex:2; padding:12px;" onclick="finishTestRecording()">
+          Hoàn Thành &amp; Gán Nhãn
+        </button>
+        <button type="button" class="btn-danger" style="flex:1; padding:12px;" onclick="abortSafeFallTest('user_aborted_recording')">
+          Hủy Bỏ
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 3: Ground Truth Confirmation -->
+    <div id="test-result-view" style="display:none;">
+      <h3 style="font-size:18px; font-weight:800; margin-bottom:6px;">Xác Nhận Kết Quả Thử Nghiệm</h3>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">
+        Khung sóng CSI đã được ghi nhận. Vui lòng xác nhận nhãn ground truth thực tế để đánh giá thuật toán:
+      </p>
+
+      <div style="background:#0c1724; border:1px solid var(--border-subtle); border-radius:10px; padding:14px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px;">
+          <span style="color:var(--text-muted);">Bài test thực hiện:</span>
+          <strong id="res-scenario-name">Mô phỏng ngã lên nệm</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:13px;">
+          <span style="color:var(--text-muted);">Kết luận FSM nhận diện:</span>
+          <strong id="res-fsm-decision" style="color:#ef4444;">🚨 CẢNH BÁO TÉ NGÃ</strong>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px; font-weight:700; color:#fff; display:block; margin-bottom:8px;">Thực tế cử động vừa diễn ra là gì?</label>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px;">
+          <label style="display:flex; align-items:center; gap:8px; background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); padding:10px 8px; border-radius:8px; cursor:pointer;">
+            <input type="radio" name="groundtruth" value="fall" checked>
+            <span style="font-size:12px; font-weight:600;">💥 Ngã thật</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); padding:10px 8px; border-radius:8px; cursor:pointer;">
+            <input type="radio" name="groundtruth" value="normal">
+            <span style="font-size:12px; font-weight:600;">🚶 Bình thường</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); padding:10px 8px; border-radius:8px; cursor:pointer;">
+            <input type="radio" name="groundtruth" value="uncertain">
+            <span style="font-size:12px; font-weight:600;">❓ Không chắc</span>
+          </label>
+        </div>
+        <div style="margin-top:10px;">
+          <label for="txt-gt-note" style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Ghi chú chi tiết (tùy chọn):</label>
+          <input id="txt-gt-note" type="text" placeholder="Ví dụ: ngã ngửa lên nệm, cử động dứt khoát..." maxlength="500" style="width:100%; box-sizing:border-box;">
+        </div>
+      </div>
+
+      <div class="input-row">
+        <button type="button" class="btn-primary btn-apply-calib" style="flex:2;" onclick="saveGroundTruthAndClose()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Lưu Nhãn &amp; Kết Thúc
+        </button>
+        <button type="button" class="btn-danger" style="flex:1; min-height:48px;" onclick="abortSafeFallTest('user_aborted_label')">
+          Hủy Bỏ
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CALIBRATION WIZARD -->
+<div class="modal-backdrop" id="modal-calib-wizard">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <div class="modal-title-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="modal-title">Hiệu Chuẩn Ngưỡng Sóng Thích Ứng</h3>
+          <p class="modal-subtitle">Đo độ nhiễu phòng &amp; cập nhật FSM</p>
+        </div>
+      </div>
+      <button type="button" class="modal-close-btn" id="btn-calib-close" onclick="closeCalibrationWizard()" aria-label="Đóng modal hiệu chuẩn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+        <span>Đóng</span>
+      </button>
+    </div>
+
+    <!-- Wizard Steps Indicator -->
+    <div class="wizard-steps">
+      <div class="wizard-line"></div>
+      <div class="wizard-step-item active" id="wstep-1">
+        <div class="wizard-step-bubble">1</div>
+        <span>Đo Nền 15s</span>
+      </div>
+      <div class="wizard-step-item" id="wstep-2">
+        <div class="wizard-step-bubble">2</div>
+        <span>Đo Đi Lại 15s</span>
+      </div>
+      <div class="wizard-step-item" id="wstep-3">
+        <div class="wizard-step-bubble">3</div>
+        <span>Bộ Ngưỡng Mới</span>
+      </div>
+    </div>
+
+    <!-- Step 1: Still 15s -->
+    <div id="wpage-1" class="wizard-body">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" style="margin-bottom:8px;">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+        <line x1="8" y1="21" x2="16" y2="21"/>
+        <line x1="12" y1="17" x2="12" y2="21"/>
+      </svg>
+      <h4 style="font-size:18px; font-weight:700; margin-bottom:6px;">Bước 1: Đo Mức Nhiễu Nền Phòng</h4>
+      <p style="font-size:13px; color:var(--text-muted); max-width:420px; margin:0 auto;">
+        Vui lòng rời khỏi phòng hoặc ngồi yên hoàn toàn trong 15 giây. Hệ thống sẽ đo mức biến thiên cơ sở của không gian tĩnh.
+      </p>
+
+      <div class="wizard-timer" id="calib-timer-1">15s</div>
+      <div class="wizard-progress-bar">
+        <div class="wizard-progress-fill" id="calib-pbar-1"></div>
+      </div>
+
+      <button id="btn-calib-start-1" class="btn-primary" style="padding:10px 24px;" onclick="runCalibStep1()">
+        Bắt Đầu Đo Nền (15s)
+      </button>
+    </div>
+
+    <!-- Step 2: Move 15s -->
+    <div id="wpage-2" class="wizard-body" style="display:none;">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" style="margin-bottom:8px;">
+        <circle cx="12" cy="5" r="2"/>
+        <path d="m9 20 3-6 2 3 3 3M6 12l4-2 3 3 4-2"/>
+      </svg>
+      <h4 style="font-size:18px; font-weight:700; margin-bottom:6px;">Bước 2: Đo Đỉnh Vận Động Thông Thường</h4>
+      <p style="font-size:13px; color:var(--text-muted); max-width:420px; margin:0 auto;">
+        Hãy đứng dậy và đi lại bình thường quanh phòng trong 15 giây để hệ thống thu thập mẫu di chuyển thật.
+      </p>
+
+      <div class="wizard-timer" id="calib-timer-2">15s</div>
+      <div class="wizard-progress-bar">
+        <div class="wizard-progress-fill" id="calib-pbar-2"></div>
+      </div>
+
+      <button id="btn-calib-start-2" class="btn-primary" style="padding:10px 24px;" onclick="runCalibStep2()">
+        Bắt Đầu Đo Đi Lại (15s)
+      </button>
+    </div>
+
+    <!-- Step 3: Results & Activation -->
+    <div id="wpage-3" class="wizard-body" style="display:none; text-align:left;">
+      <!-- Success View -->
+      <div id="calib-success-content">
+        <div style="text-align:center; margin-bottom:14px;">
+          <div style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:50%; background:rgba(16, 185, 129, 0.2); color:#34d399; margin-bottom:8px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+          <h4 style="font-size:18px; font-weight:700;">Hiệu Chuẩn Ngưỡng Hoàn Tất</h4>
+          <p style="font-size:12px; color:var(--text-muted); max-width:440px; margin:4px auto 0;">
+            Hệ thống đã tự động tính toán bộ ngưỡng thô chuẩn xác từ mẫu thật và kích hoạt ngay vào bộ nhận diện FSM.
+          </p>
+        </div>
+
+        <div class="calib-threshold-cards">
+          <!-- Still -->
+          <div class="calib-card calib-card-still">
+            <div class="calib-card-info">
+              <div style="font-size:11px; font-weight:700; color:#34d399; margin-bottom:2px;">YÊN TĨNH (T_still)</div>
+              <div style="font-size:10px; color:var(--text-dim);">Đặc trưng thô M(t)</div>
+            </div>
+            <div class="calib-card-values">
+              <div id="res-t-still" style="font-size:20px; font-weight:800; color:#fff; font-family:ui-monospace, monospace; margin:2px 0;">0.0250</div>
+              <div style="font-size:11px; color:#a7f3d0; font-weight:600; background:rgba(16,185,129,0.12); padding:2px 6px; border-radius:4px; display:inline-block;">
+                Vạch Gauge: 20
+              </div>
+            </div>
+          </div>
+          <!-- Move -->
+          <div class="calib-card calib-card-move">
+            <div class="calib-card-info">
+              <div style="font-size:11px; font-weight:700; color:#fbbf24; margin-bottom:2px;">VẬN ĐỘNG (T_move)</div>
+              <div style="font-size:10px; color:var(--text-dim);">Đặc trưng thô M(t)</div>
+            </div>
+            <div class="calib-card-values">
+              <div id="res-t-move" style="font-size:20px; font-weight:800; color:#fff; font-family:ui-monospace, monospace; margin:2px 0;">0.0650</div>
+              <div style="font-size:11px; color:#fde68a; font-weight:600; background:rgba(245,158,11,0.12); padding:2px 6px; border-radius:4px; display:inline-block;">
+                Vạch Gauge: 50
+              </div>
+            </div>
+          </div>
+          <!-- Spike -->
+          <div class="calib-card calib-card-spike">
+            <div class="calib-card-info">
+              <div style="font-size:11px; font-weight:700; color:#f87171; margin-bottom:2px;">ĐỘT BIẾN / NGÃ (T_spike)</div>
+              <div style="font-size:10px; color:var(--text-dim);">Đặc trưng thô M(t)</div>
+            </div>
+            <div class="calib-card-values">
+              <div id="res-t-spike" style="font-size:20px; font-weight:800; color:#fff; font-family:ui-monospace, monospace; margin:2px 0;">0.1800</div>
+              <div style="font-size:11px; color:#fca5a5; font-weight:600; background:rgba(239,68,68,0.12); padding:2px 6px; border-radius:4px; display:inline-block;">
+                Vạch Gauge: 80
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#09121c; border:1px solid var(--border-subtle); border-radius:8px; padding:10px 12px; margin-bottom:16px; font-size:11px; color:var(--text-muted); display:flex; align-items:center; gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" style="flex-shrink:0;">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+          <span>Máy chủ đã tự động nạp và kích hoạt bộ ngưỡng mới. Không cần cấu hình lại thủ công.</span>
+        </div>
+
+        <button type="button" id="btn-apply-calib" class="btn-primary btn-apply-calib" onclick="applyCalibrationResults()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Áp Dụng Kết Quả &amp; Đóng
+        </button>
+      </div>
+
+      <!-- Error View -->
+      <div id="calib-error-box" style="display:none; text-align:center;">
+        <div style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:50%; background:rgba(239, 68, 68, 0.2); color:#f87171; margin-bottom:8px;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </div>
+        <h4 style="font-size:18px; font-weight:700; color:#f87171;">Không Thể Tính Toán Bộ Ngưỡng</h4>
+        <p id="calib-error-msg" style="font-size:13px; color:var(--text-muted); max-width:440px; margin:8px auto 16px;">
+          Chưa đủ mẫu dữ liệu CSI (cần ít nhất 5 mẫu tĩnh và 5 mẫu di chuyển). Vui lòng kiểm tra lại kết nối phần cứng.
+        </p>
+        <button class="btn-primary" style="padding:10px 24px;" onclick="goToCalibStep(1)">
+          Thử Lại Từ Bước 1
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==========================================================================
+   ESP32-S3 CSI FALL DETECTION DASHBOARD CORE JAVASCRIPT
+   Clean vanilla JS, zero external dependencies, 100% offline capable.
+   ========================================================================== */
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const val = s => {
+  const el = $('#' + s);
+  return el ? el.value.trim() : '';
+};
+
+function escapeHtml(s) {
+  if (typeof s !== 'string') s = (s == null ? '' : JSON.stringify(s));
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Global App State
+let state = null;
+let audioMuted = false;
+let audioCtx = null;
+let sirenOsc = null;
+let sirenGain = null;
+let sirenTimer = null;
+
+// Thresholds & DSP State
+let rawThresholds = {
+  still: 0.0250,
+  move: 0.0650,
+  spike: 0.1800
+};
+let mappedThresholds = {
+  still: 20,
+  move: 50,
+  spike: 80
+};
+
+let currentScore = 0; // 0..100 motion_score
+let currentRaw = 0;   // Raw M(t) float
+let clientFsmState = 'UNKNOWN'; // NORMAL, MOVING, CANDIDATE, FALL_ALERT, UNKNOWN
+let candidateTimer = 0;
+let candidateStartTs = 0;
+
+// Chart Mode: 'mapped' (0-100 visual scale) or 'raw' (raw M(t) feature)
+let chartMode = 'mapped';
+
+// 30s History buffer for Canvas
+// Array of { t: ms, score: number, raw: number, state: string, event: string|null }
+const historyData = [];
+const HISTORY_WINDOW_MS = 30000;
+
+// Test Runner State
+let currentSelectedTest = 'walk';
+let testCountdownInterval = null;
+let testTimerInterval = null;
+let testRemainingTime = 15;
+let testHighestFsm = 'NORMAL';
+
+// Calibration Runner State
+let calibInterval = null;
+let calibStep = 1;
+
+/* --------------------------------------------------------------------------
+   UI SEMANTIC EVENT TRACKER & SERVER-MANAGED RUN LIFECYCLE
+   -------------------------------------------------------------------------- */
+const clientInstanceId = 'client_' + Math.random().toString(36).slice(2, 10);
+let clientSeq = 0;
+let activeRunId = null;     // Active run managed by server POST /api/runs
+let fallbackRunId = null;   // Known run_id in database for context stamping
+const telemetryQueue = [];
+let telemetryFlushTimer = null;
+let isFlushingTelemetry = false;
+
+function emitTelemetry(eventType, actionId = null, payload = {}, immediate = false) {
+  const runId = activeRunId || fallbackRunId;
+  const evt = {
+    event_id: 'evt_' + Math.random().toString(36).slice(2, 10),
+    event_type: eventType,
+    action_id: actionId || null,
+    origin: 'ui',
+    client_instance_id: clientInstanceId,
+    client_seq: ++clientSeq,
+    client_wall_ms: Date.now(),
+    client_mono_ns: Math.round(performance.now() * 1e6).toString(),
+    payload: payload || {}
+  };
+  if (runId) {
+    evt.run_id = runId;
+  }
+  telemetryQueue.push(evt);
+
+  if (immediate || telemetryQueue.length >= 10) {
+    flushTelemetry();
+  } else if (!telemetryFlushTimer) {
+    telemetryFlushTimer = setTimeout(() => {
+      telemetryFlushTimer = null;
+      flushTelemetry();
+    }, 800);
+  }
+}
+
+// Semantic telemetry event sender (alias to emitTelemetry)
+const sendTelemetryEvent = emitTelemetry;
+
+async function flushTelemetry() {
+  if (telemetryFlushTimer) {
+    clearTimeout(telemetryFlushTimer);
+    telemetryFlushTimer = null;
+  }
+  if (telemetryQueue.length === 0 || isFlushingTelemetry) return;
+
+  const currentRun = activeRunId || fallbackRunId;
+  if (!currentRun) {
+    if (telemetryQueue.length > 50) telemetryQueue.splice(0, telemetryQueue.length - 50);
+    return;
+  }
+
+  for (let i = 0; i < telemetryQueue.length; i++) {
+    if (!telemetryQueue[i].run_id) {
+      telemetryQueue[i].run_id = currentRun;
+    }
+  }
+
+  const batch = telemetryQueue.splice(0, 50);
+  isFlushingTelemetry = true;
+  try {
+    const res = await fetch('/api/telemetry/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ events: batch })
+    });
+    if (!res.ok) {
+      console.warn('Telemetry events POST status:', res.status);
+    }
+  } catch (err) {
+    console.warn('Telemetry events flush network error:', err);
+  } finally {
+    isFlushingTelemetry = false;
+    if (telemetryQueue.length > 0) {
+      setTimeout(flushTelemetry, 150);
+    }
+  }
+}
+
+async function fetchLatestRunId() {
+  try {
+    const res = await fetch('/api/runs?limit=1');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.runs && data.runs.length > 0) {
+        fallbackRunId = data.runs[0].run_id;
+        if (telemetryQueue.length > 0) flushTelemetry();
+      }
+    }
+  } catch (e) {}
+}
+
+/* --------------------------------------------------------------------------
+   TOAST MESSAGE NOTIFICATION HELPER
+   -------------------------------------------------------------------------- */
+let toastTimer = null;
+function showToast(msg, type = 'info') {
+  const bar = $('#message-bar');
+  if (!bar) return;
+  bar.textContent = msg;
+  bar.className = type;
+  bar.style.display = 'flex';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    bar.textContent = '';
+    bar.style.display = 'none';
+  }, 4500);
+}
+
+/* --------------------------------------------------------------------------
+   WEB AUDIO API SOUND GENERATOR
+   -------------------------------------------------------------------------- */
+function ensureAudioContext() {
+  if (!audioCtx) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      audioCtx = new AudioContextClass();
+    }
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+// Play countdown beep (short sine pulse)
+function playBeep(frequency = 520, duration = 0.08, type = 'sine') {
+  if (audioMuted) return;
+  try {
+    ensureAudioContext();
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch (e) {
+    console.warn('Audio playBeep error:', e);
+  }
+}
+
+// Emergency Fall Siren (alternating two-tone siren)
+function startSirenSound() {
+  if (audioMuted || sirenOsc) return;
+  try {
+    ensureAudioContext();
+    if (!audioCtx) return;
+
+    sirenOsc = audioCtx.createOscillator();
+    sirenGain = audioCtx.createGain();
+    sirenOsc.type = 'sawtooth';
+    sirenOsc.frequency.setValueAtTime(750, audioCtx.currentTime);
+
+    sirenGain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    sirenOsc.connect(sirenGain);
+    sirenGain.connect(audioCtx.destination);
+    sirenOsc.start();
+
+    let high = false;
+    sirenTimer = setInterval(() => {
+      if (!sirenOsc || !audioCtx) return;
+      high = !high;
+      sirenOsc.frequency.setValueAtTime(high ? 980 : 700, audioCtx.currentTime);
+    }, 280);
+  } catch (e) {
+    console.warn('Audio startSiren error:', e);
+  }
+}
+
+function stopSirenSound() {
+  if (sirenTimer) {
+    clearInterval(sirenTimer);
+    sirenTimer = null;
+  }
+  if (sirenOsc) {
+    try {
+      sirenGain.gain.setValueAtTime(0, audioCtx.currentTime);
+      sirenOsc.stop();
+      sirenOsc.disconnect();
+    } catch (e) {}
+    sirenOsc = null;
+    sirenGain = null;
+  }
+}
+
+function toggleAudio() {
+  ensureAudioContext();
+  audioMuted = !audioMuted;
+  emitTelemetry('ui.audio.toggle', 'btn-audio-toggle', { muted: audioMuted });
+  $('#svg-sound-on').style.display = audioMuted ? 'none' : 'block';
+  $('#svg-sound-off').style.display = audioMuted ? 'block' : 'none';
+  if (audioMuted) {
+    stopSirenSound();
+  } else if (clientFsmState === 'FALL_ALERT') {
+    startSirenSound();
+  }
+}
+
+// Unmute / unlock AudioContext on user first interaction
+window.addEventListener('pointerdown', () => ensureAudioContext(), { once: true });
+window.addEventListener('keydown', () => ensureAudioContext(), { once: true });
+
+/* --------------------------------------------------------------------------
+   REST API CALLS
+   -------------------------------------------------------------------------- */
+async function apiCall(path, body = {}) {
+  try {
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const j = await r.json();
+    if (!j.ok && j.error) {
+      showToast('Lỗi yêu cầu: ' + j.error, 'error');
+    }
+    if (j.state) render(j.state);
+    return j;
+  } catch (e) {
+    console.warn('API error (' + path + '):', e);
+    showToast('Lỗi kết nối máy chủ: ' + e.message, 'error');
+    return { ok: false, error: String(e) };
+  }
+}
+
+async function fetchPorts() {
+  emitTelemetry('ui.serial.refresh_ports', 'btn-refresh-ports', {});
+  try {
+    const r = await fetch('/api/ports');
+    const j = await r.json();
+    const sel = $('#sel-port');
+    const cur = sel.value;
+    sel.replaceChildren(...j.ports.map(p => {
+      const opt = document.createElement('option');
+      opt.value = p.device;
+      opt.textContent = p.device + (p.description ? ' · ' + p.description : '');
+      if (p.device === cur) opt.selected = true;
+      return opt;
+    }));
+    updateHardwareButtons();
+  } catch (e) {
+    console.error('Lỗi truy vấn ports:', e);
+  }
+}
+
+function updateHardwareButtons() {
+  if (!state) return;
+  const open = state.connection === 'open';
+  const verified = $('#chk-verify-mac').checked;
+  const hasPort = !!val('sel-port');
+  const hasMACs = !!val('txt-rx-mac') && !!val('txt-tx-mac');
+
+  $('#btn-connect').disabled = open || !verified || !hasPort || !hasMACs;
+  $('#btn-disconnect').disabled = !open;
+  $('#btn-rec-start').disabled = !open || !!state.recording;
+  $('#btn-rec-stop').disabled = !state.recording;
+}
+
+function connectSerial() {
+  const port = val('sel-port');
+  const rx_mac = val('txt-rx-mac');
+  const source_mac = val('txt-tx-mac');
+  emitTelemetry('ui.serial.connect_requested', 'btn-connect', { port, rx_mac, source_mac }, true);
+  apiCall('/api/connect', {
+    port: port,
+    baud: 921600,
+    rx_mac: rx_mac,
+    source_mac: source_mac,
+    identities_verified: $('#chk-verify-mac').checked
+  }).then(res => {
+    emitTelemetry('ui.serial.connect_response', 'btn-connect', { ok: res.ok, error: res.error || null }, true);
+  });
+}
+
+function disconnectSerial() {
+  emitTelemetry('ui.serial.disconnect_requested', 'btn-disconnect', {}, true);
+  apiCall('/api/disconnect', {}).then(res => {
+    emitTelemetry('ui.serial.disconnect_response', 'btn-disconnect', { ok: res.ok }, true);
+  });
+}
+
+function acknowledgeAlert() {
+  emitTelemetry('ui.alert.ack', 'btn-ack', { state_before: clientFsmState }, true);
+  stopSirenSound();
+  clientFsmState = 'NORMAL';
+  candidateTimer = 0;
+  updateHeroBanner('NORMAL', 'Người dùng đã bấm xác nhận "Tôi Ổn"');
+
+  apiCall('/api/alert/ack', {}).catch(() => {});
+  apiCall('/api/marker', { kind: 'note', note: 'USER_ACK_ALERT: Tôi Ổn' }).catch(() => {});
+}
+
+/* --------------------------------------------------------------------------
+   FSM & MOTION GAUGE UPDATE LOGIC
+   -------------------------------------------------------------------------- */
+function updateDSPAndFSM(s) {
+  let scoreVal = 0;
+  let rawVal = 0;
+
+  if (s.fsm) {
+    if (s.fsm.motion_score != null) {
+      scoreVal = Number(s.fsm.motion_score);
+    }
+    if (s.fsm.raw_motion != null) {
+      rawVal = Number(s.fsm.raw_motion);
+    }
+    if (s.fsm.thresholds) {
+      rawThresholds = {
+        still: Number(s.fsm.thresholds.still),
+        move: Number(s.fsm.thresholds.move),
+        spike: Number(s.fsm.thresholds.spike)
+      };
+    }
+    if (s.fsm.thresholds_mapped) {
+      mappedThresholds = {
+        still: Number(s.fsm.thresholds_mapped.still),
+        move: Number(s.fsm.thresholds_mapped.move),
+        spike: Number(s.fsm.thresholds_mapped.spike)
+      };
+    }
+  } else if (s.variation && s.variation.value != null) {
+    scoreVal = Math.min(100, Math.max(0, s.variation.value * 4));
+    rawVal = s.variation.value * 0.01;
+  }
+
+  // Smooth lerp for visual display
+  currentScore = currentScore * 0.35 + scoreVal * 0.65;
+  currentRaw = currentRaw * 0.35 + rawVal * 0.65;
+  if (isNaN(currentScore)) currentScore = 0;
+  if (isNaN(currentRaw)) currentRaw = 0;
+
+  // Determine FSM State
+  const now = Date.now();
+  let fsm = 'NORMAL';
+
+  if (s.connection !== 'open' || s.csi_health === 'UNKNOWN') {
+    fsm = 'UNKNOWN';
+    candidateTimer = 0;
+    stopSirenSound();
+  } else if (s.fsm && s.fsm.state) {
+    // Authoritative backend FSM state
+    fsm = s.fsm.state;
+  } else {
+    // Client-side fallback
+    if (clientFsmState === 'FALL_ALERT') {
+      fsm = 'FALL_ALERT';
+    } else if (currentScore >= mappedThresholds.spike) {
+      fsm = 'CANDIDATE';
+      if (clientFsmState !== 'CANDIDATE') {
+        candidateStartTs = now;
+        candidateTimer = 3.0;
+        addEventLog('[FSM:CANDIDATE] Phát hiện va chạm Score=' + currentScore.toFixed(0) + ' >= ' + mappedThresholds.spike);
+      }
+    } else if (clientFsmState === 'CANDIDATE') {
+      const elapsed = (now - candidateStartTs) / 1000;
+      candidateTimer = Math.max(0, 3.0 - elapsed);
+      if (currentScore < mappedThresholds.still) {
+        if (candidateTimer <= 0) {
+          fsm = 'FALL_ALERT';
+          addEventLog('🚨 [FSM:FALL_ALERT] Bất động sau va chạm! Kích hoạt báo động.');
+        } else {
+          fsm = 'CANDIDATE';
+        }
+      } else if (currentScore >= mappedThresholds.move) {
+        fsm = 'MOVING';
+        candidateTimer = 0;
+        addEventLog('[FSM:CANCEL] Người dùng tiếp tục cử động. Hủy nghi ngã.');
+      } else {
+        fsm = 'CANDIDATE';
+      }
+    } else if (currentScore >= mappedThresholds.move) {
+      fsm = 'MOVING';
+    } else {
+      fsm = 'NORMAL';
+    }
+  }
+
+  clientFsmState = fsm;
+
+  // Siren management
+  if (clientFsmState === 'FALL_ALERT') {
+    startSirenSound();
+  } else {
+    stopSirenSound();
+  }
+
+  // Update Test runner track
+  if (clientFsmState === 'FALL_ALERT') {
+    testHighestFsm = 'FALL_ALERT';
+  } else if (clientFsmState === 'CANDIDATE' && testHighestFsm !== 'FALL_ALERT') {
+    testHighestFsm = 'CANDIDATE';
+  }
+
+  // Push sample to history buffer (store both score and raw!)
+  const isSpike = (currentScore >= mappedThresholds.spike) || (rawVal >= rawThresholds.spike);
+  historyData.push({
+    t: now,
+    score: currentScore,
+    raw: currentRaw,
+    state: clientFsmState,
+    event: clientFsmState === 'FALL_ALERT' ? 'ALERT' : (isSpike ? 'SPIKE' : null)
+  });
+
+  // Prune history older than 30s
+  while (historyData.length > 0 && historyData[0].t < now - HISTORY_WINDOW_MS) {
+    historyData.shift();
+  }
+
+  // Render Visual Elements
+  updateHeroBanner(clientFsmState);
+  updateGauge(currentScore, currentRaw);
+  updateCalibrationSummaryUI();
+}
+
+/* --------------------------------------------------------------------------
+   HERO BANNER RENDERER
+   -------------------------------------------------------------------------- */
+function updateHeroBanner(stateCode, customDesc) {
+  const banner = $('#hero-banner');
+  const label = $('#hero-state-label');
+  const title = $('#hero-title');
+  const desc = $('#hero-desc');
+
+  // Reset icon visibility
+  ['normal', 'moving', 'candidate', 'alert', 'lost'].forEach(k => {
+    const el = $('#icon-' + k);
+    if (el) el.style.display = 'none';
+  });
+
+  banner.className = 'hero-banner';
+
+  switch (stateCode) {
+    case 'NORMAL':
+      banner.classList.add('banner-normal');
+      $('#icon-normal').style.display = 'block';
+      label.textContent = 'AN TOÀN · ĐANG GIÁM SÁT 24/7';
+      title.textContent = 'BÌNH THƯỜNG';
+      desc.textContent = customDesc || 'Môi trường phòng ổn định, không có biến động bất thường. Hệ thống giám sát liên tục.';
+      break;
+
+    case 'MOVING':
+      banner.classList.add('banner-moving');
+      $('#icon-moving').style.display = 'block';
+      label.textContent = 'CHUYỂN ĐỘNG PHÒNG';
+      title.textContent = 'CÓ VẬN ĐỘNG';
+      desc.textContent = customDesc || 'Đang phát hiện có người di chuyển hoặc hoạt động bình thường trong phòng.';
+      break;
+
+    case 'CANDIDATE':
+      banner.classList.add('banner-candidate');
+      $('#icon-candidate').style.display = 'block';
+      label.textContent = 'CHÚ Ý · NGHI NGỜ TÉ NGÃ';
+      title.textContent = 'ĐANG XÁC MINH NGHI NGÃ';
+      desc.textContent = customDesc || 'Phát hiện xung sóng va chạm mạnh. Đang đếm ngược 3s kiểm tra trạng thái bất động sau ngã...';
+
+      const p = Math.max(0, Math.min(100, (candidateTimer / 3.0) * 100));
+      $('#candidate-progress').style.width = p + '%';
+      $('#candidate-text').textContent = `Đang kiểm tra bất động: ${candidateTimer.toFixed(1)}s còn lại...`;
+      break;
+
+    case 'FALL_ALERT':
+      banner.classList.add('banner-alert');
+      $('#icon-alert').style.display = 'block';
+      label.textContent = 'NGUY HIỂM · CẢNH BÁO KHẨN CẤP';
+      title.textContent = '🚨 CẢNH BÁO TÉ NGÃ!';
+      desc.textContent = customDesc || 'Phát hiện va chạm mạnh kèm bất động kéo dài! Người nhà hãy kiểm tra ngay.';
+      break;
+
+    case 'WARMUP':
+      banner.classList.add('banner-normal');
+      $('#icon-normal').style.display = 'block';
+      label.textContent = 'KHỞI ĐỘNG DSP';
+      title.textContent = 'ĐANG KHỞI ĐỘNG BỘ LỌC';
+      desc.textContent = customDesc || 'Hệ thống đang tích lũy cửa sổ mẫu CSI để thiết lập baseline ổn định.';
+      break;
+
+    case 'UNKNOWN':
+    default:
+      banner.classList.add('banner-lost');
+      $('#icon-lost').style.display = 'block';
+      label.textContent = 'KẾT NỐI PHẦN CỨNG';
+      title.textContent = 'MẤT TÍN HIỆU CSI';
+      desc.textContent = customDesc || 'Chưa mở cổng Serial hoặc không có khung sóng CSI từ bộ phát TX. Vui lòng kiểm tra cáp USB và nguồn phát.';
+      break;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   MOTION GAUGE RENDERER
+   -------------------------------------------------------------------------- */
+function updateGauge(score, raw) {
+  const boundedScore = Math.max(0, Math.min(100, score));
+  $('#gauge-score').textContent = boundedScore.toFixed(0);
+  $('#m-raw-val').textContent = (raw != null ? raw : 0).toFixed(4);
+
+  // SVG Arc length for radius 90 semi-circle: Math.PI * 90 ≈ 282.74
+  const arcLength = 282.74;
+  const offset = arcLength * (1 - (boundedScore / 100));
+  $('#gauge-arc').style.strokeDashoffset = offset;
+
+  // Pin tick angle (-180deg to 0deg)
+  const angleRad = Math.PI * (1 - boundedScore / 100);
+  const cx = 120 - 90 * Math.cos(angleRad);
+  const cy = 120 - 90 * Math.sin(angleRad);
+  const pin = $('#gauge-pin');
+  if (pin) {
+    pin.setAttribute('cx', cx);
+    pin.setAttribute('cy', cy);
+  }
+
+  // Description badge based on standard mapped gauge thresholds (20, 50, 80)
+  const desc = $('#gauge-state-desc');
+  if (desc) {
+    if (score < mappedThresholds.still) {
+      desc.textContent = 'Yên tĩnh (Still)';
+      desc.style.color = '#34d399';
+      desc.style.borderColor = '#059669';
+    } else if (score < mappedThresholds.move) {
+      desc.textContent = 'Vận động nhẹ';
+      desc.style.color = '#a7f3d0';
+      desc.style.borderColor = '#10b981';
+    } else if (score < mappedThresholds.spike) {
+      desc.textContent = 'Di chuyển mạnh (Move)';
+      desc.style.color = '#fde047';
+      desc.style.borderColor = '#d97706';
+    } else {
+      desc.textContent = 'Xung va chạm (Spike)!';
+      desc.style.color = '#fca5a5';
+      desc.style.borderColor = '#dc2626';
+    }
+  }
+
+  // Display raw thresholds in zones
+  if ($('#lbl-raw-still')) $('#lbl-raw-still').textContent = rawThresholds.still.toFixed(3);
+  if ($('#lbl-raw-still2')) $('#lbl-raw-still2').textContent = rawThresholds.still.toFixed(3);
+  if ($('#lbl-raw-spike')) $('#lbl-raw-spike').textContent = rawThresholds.spike.toFixed(3);
+  if ($('#lbl-raw-spike2')) $('#lbl-raw-spike2').textContent = rawThresholds.spike.toFixed(3);
+}
+
+function updateCalibrationSummaryUI() {
+  const sumEl = $('#calib-param-summary');
+  if (sumEl) {
+    sumEl.textContent = `M(t): Still ${rawThresholds.still.toFixed(3)} · Move ${rawThresholds.move.toFixed(3)} · Spike ${rawThresholds.spike.toFixed(3)} (Gauge: 20 · 50 · 80)`;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   TELEMETRY METRICS CHIPS (BURST RATIO, ROOM PRESENCE, SPECTRAL DISTANCE)
+   -------------------------------------------------------------------------- */
+function updateTelemetryChips(s) {
+  if (!s) return;
+
+  // 1. Burst Ratio (B): 0.0 - 1.0
+  const burstVal = s.burst_ratio != null ? Number(s.burst_ratio) : null;
+  const burstThresh = (s.fsm && s.fsm.thresholds && s.fsm.thresholds.burst != null)
+    ? Number(s.fsm.thresholds.burst)
+    : 0.65;
+  const valBurstEl = $('#val-burst-ratio');
+  const meterBurstFill = $('#meter-burst-fill');
+  const badgeBurst = $('#badge-burst-level');
+  const descBurst = $('#desc-burst-ratio');
+
+  if (valBurstEl && meterBurstFill && badgeBurst && descBurst) {
+    if (burstVal != null && !isNaN(burstVal)) {
+      valBurstEl.textContent = burstVal.toFixed(2);
+      const pct = Math.max(0, Math.min(100, burstVal * 100));
+      meterBurstFill.style.width = pct + '%';
+      if (burstVal >= burstThresh) {
+        badgeBurst.textContent = 'Bùng phát';
+        badgeBurst.className = 'chip-badge badge-warning';
+        meterBurstFill.style.background = 'linear-gradient(90deg, #f59e0b, #ef4444)';
+        descBurst.textContent = `B = ${burstVal.toFixed(2)} ≥ ${burstThresh.toFixed(2)} (Xung năng lượng cao)`;
+      } else {
+        badgeBurst.textContent = 'Bình thường';
+        badgeBurst.className = 'chip-badge badge-ok';
+        meterBurstFill.style.background = 'linear-gradient(90deg, #10b981, #06b6d4)';
+        descBurst.textContent = 'Biến thiên động năng trong dải ổn định';
+      }
+    } else {
+      valBurstEl.textContent = '—';
+      meterBurstFill.style.width = '0%';
+      badgeBurst.textContent = 'Chờ tín hiệu';
+      badgeBurst.className = 'chip-badge';
+      descBurst.textContent = 'Chưa có chuỗi cửa sổ tính burst';
+    }
+  }
+
+  // 2. Room Presence (EMPTY_COMPATIBLE vs NONEMPTY_CHANGED vs UNKNOWN)
+  const presence = s.room_presence || 'UNKNOWN';
+  const valPresenceEl = $('#val-room-presence');
+  const badgePresence = $('#badge-presence-status');
+  const dotPresence = $('#presence-dot');
+  const descPresence = $('#desc-room-presence');
+  const chipPresence = $('#chip-presence');
+
+  if (chipPresence && valPresenceEl && badgePresence && dotPresence && descPresence) {
+    chipPresence.classList.remove('status-empty', 'status-occupied');
+
+    if (presence === 'EMPTY_COMPATIBLE') {
+      chipPresence.classList.add('status-empty');
+      valPresenceEl.textContent = 'Phòng trống';
+      badgePresence.textContent = 'EMPTY_COMPATIBLE';
+      badgePresence.className = 'chip-badge badge-empty';
+      dotPresence.className = 'presence-dot dot-empty';
+      descPresence.textContent = 'Phổ sóng khớp hoàn toàn với mẫu phòng trống';
+    } else if (presence === 'NONEMPTY_CHANGED') {
+      chipPresence.classList.add('status-occupied');
+      valPresenceEl.textContent = 'Có người / Vật thể';
+      badgePresence.textContent = 'NONEMPTY_CHANGED';
+      badgePresence.className = 'chip-badge badge-occupied';
+      dotPresence.className = 'presence-dot dot-occupied';
+      descPresence.textContent = 'Phát hiện tán xạ sóng do đối tượng trong phòng';
+    } else {
+      valPresenceEl.textContent = 'Chưa xác định';
+      badgePresence.textContent = 'UNKNOWN';
+      badgePresence.className = 'chip-badge';
+      dotPresence.className = 'presence-dot';
+      descPresence.textContent = 'Bấm "Chụp mẫu phòng trống (2s)" để đo';
+    }
+  }
+
+  // 3. Spectral Distance (D_E)
+  const spectralDist = s.spectral_dist != null ? Number(s.spectral_dist) : null;
+  const emptyThresh = (s.fsm && s.fsm.thresholds && s.fsm.thresholds.empty != null)
+    ? Number(s.fsm.thresholds.empty)
+    : 0.35;
+  const lblThreshEl = $('#lbl-spectral-thresh');
+  if (lblThreshEl) lblThreshEl.textContent = emptyThresh.toFixed(2);
+
+  const valSpectralEl = $('#val-spectral-dist');
+  const meterSpectralFill = $('#meter-spectral-fill');
+  const badgeSpectral = $('#badge-spectral-level');
+  const descSpectral = $('#desc-spectral-dist');
+
+  if (valSpectralEl && meterSpectralFill && badgeSpectral && descSpectral) {
+    if (spectralDist != null && !isNaN(spectralDist)) {
+      valSpectralEl.textContent = spectralDist.toFixed(2);
+      const specPct = Math.max(0, Math.min(100, (spectralDist / 2.0) * 100));
+      meterSpectralFill.style.width = specPct + '%';
+      if (spectralDist < emptyThresh) {
+        badgeSpectral.textContent = 'Khớp mẫu';
+        badgeSpectral.className = 'chip-badge badge-empty';
+        descSpectral.textContent = `DE = ${spectralDist.toFixed(2)} < ${emptyThresh.toFixed(2)} (Phù hợp phòng trống)`;
+      } else {
+        badgeSpectral.textContent = 'Lệch chuẩn';
+        badgeSpectral.className = 'chip-badge badge-occupied';
+        descSpectral.textContent = `DE = ${spectralDist.toFixed(2)} ≥ ${emptyThresh.toFixed(2)} (Lệch vector nền)`;
+      }
+    } else {
+      valSpectralEl.textContent = '—';
+      meterSpectralFill.style.width = '0%';
+      badgeSpectral.textContent = 'Chưa lấy mẫu';
+      badgeSpectral.className = 'chip-badge';
+      descSpectral.textContent = 'Độ lệch vector sóng tới mẫu nền';
+    }
+  }
+}
+
+/* --------------------------------------------------------------------------
+   EMPTY ROOM BASELINE CAPTURE (2 SECONDS)
+   -------------------------------------------------------------------------- */
+let isEmptyRoomCapturing = false;
+let emptyRoomTimer = null;
+
+async function captureEmptyRoom() {
+  if (isEmptyRoomCapturing) return;
+
+  sendTelemetryEvent('ui.empty_room.capture_click', 'btn-empty-room-capture', {
+    connection: state ? state.connection : 'unknown',
+    mode: state ? state.mode : 'unknown'
+  }, true);
+
+  if (!state || (state.connection !== 'open' && state.mode !== 'REPLAY')) {
+    showToast('Cần có luồng CSI đang kết nối (Live hoặc Replay) để lấy mẫu phòng trống!', 'warning');
+    return;
+  }
+
+  try {
+    const res = await apiCall('/api/empty_room/capture');
+    if (!res || res.ok === false) {
+      showToast('Không thể bắt đầu lấy mẫu: ' + (res?.error || 'Lỗi kết nối'), 'error');
+      return;
+    }
+
+    isEmptyRoomCapturing = true;
+    updateEmptyRoomCaptureUi(true, 2.0);
+    showToast('Đang chụp mẫu phòng trống trong 2 giây... Vui lòng không di chuyển trong phòng.', 'info');
+    addEventLog('[PHÒNG TRỐNG] Bắt đầu thu thập dữ liệu phổ baseline phòng trống (2s)...');
+
+    let remainSec = 2.0;
+    const intervalMs = 100;
+    emptyRoomTimer = setInterval(() => {
+      remainSec -= intervalMs / 1000;
+      if (remainSec <= 0) {
+        clearInterval(emptyRoomTimer);
+        emptyRoomTimer = null;
+        isEmptyRoomCapturing = false;
+        updateEmptyRoomCaptureUi(false);
+        showToast('🏠 Đã chụp xong mẫu phòng trống (2s)! Baseline đã được cập nhật.', 'success');
+        addEventLog('[PHÒNG TRỐNG] Hoàn tất chụp mẫu phòng trống 2s. Baseline hiện diện đã cập nhật.');
+        sendTelemetryEvent('ui.empty_room.capture_done', 'btn-empty-room-capture', {
+          duration_s: 2.0,
+          room_presence: state ? state.room_presence : 'unknown',
+          spectral_dist: state ? state.spectral_dist : null
+        }, true);
+      } else {
+        updateEmptyRoomCaptureUi(true, remainSec);
+      }
+    }, intervalMs);
+
+  } catch (err) {
+    isEmptyRoomCapturing = false;
+    updateEmptyRoomCaptureUi(false);
+    showToast('Lỗi khi gửi lệnh chụp phòng trống: ' + err.message, 'error');
+  }
+}
+
+function updateEmptyRoomCaptureUi(isCapturing, remainSec = 2.0) {
+  const btn1 = $('#btn-empty-room-capture');
+  const btn2 = $('#btn-empty-room-calib');
+  const text1 = $('#btn-empty-room-text');
+
+  if (isCapturing) {
+    if (btn1) {
+      btn1.disabled = true;
+      btn1.style.opacity = '0.75';
+      btn1.style.borderColor = '#38bdf8';
+    }
+    if (text1) text1.textContent = `Đang lấy mẫu... (${Math.max(0, remainSec).toFixed(1)}s)`;
+    if (btn2) {
+      btn2.disabled = true;
+      btn2.textContent = `⏳ Đang lấy mẫu... (${Math.max(0, remainSec).toFixed(1)}s)`;
+    }
+  } else {
+    if (btn1) {
+      btn1.disabled = false;
+      btn1.style.opacity = '1';
+      btn1.style.borderColor = '';
+    }
+    if (text1) text1.textContent = 'Chụp mẫu phòng trống (2s)';
+    if (btn2) {
+      btn2.disabled = false;
+      btn2.textContent = '🏠 Chụp mẫu phòng trống (2s)';
+    }
+  }
+}
+
+/* --------------------------------------------------------------------------
+   30-SECOND HISTORY CHART (CANVAS RENDERING)
+   -------------------------------------------------------------------------- */
+function setChartMode(mode) {
+  emitTelemetry('ui.chart.mode_switch', 'btn-chart-' + mode, { mode: mode });
+  chartMode = mode;
+  const btnMapped = $('#btn-chart-mapped');
+  const btnRaw = $('#btn-chart-raw');
+  if (btnMapped && btnRaw) {
+    btnMapped.classList.toggle('active', mode === 'mapped');
+    btnRaw.classList.toggle('active', mode === 'raw');
+  }
+  updateChartLegend();
+}
+
+function updateChartLegend() {
+  const lblM = $('#chart-legend-m');
+  const lblSpike = $('#chart-legend-spike');
+  const lblMove = $('#chart-legend-move');
+  const lblStill = $('#chart-legend-still');
+
+  if (chartMode === 'mapped') {
+    if (lblM) lblM.textContent = 'Đường điểm số M(t) [0-100]';
+    if (lblSpike) lblSpike.textContent = `Ngưỡng Va Chạm: ${mappedThresholds.spike} (T_spike)`;
+    if (lblMove) lblMove.textContent = `Ngưỡng Vận Động: ${mappedThresholds.move} (T_move)`;
+    if (lblStill) lblStill.textContent = `Ngưỡng Yên Tĩnh: ${mappedThresholds.still} (T_still)`;
+  } else {
+    if (lblM) lblM.textContent = 'Đường đặc trưng thô M(t)';
+    if (lblSpike) lblSpike.textContent = `Ngưỡng Va Chạm: ${rawThresholds.spike.toFixed(3)} (T_spike)`;
+    if (lblMove) lblMove.textContent = `Ngưỡng Vận Động: ${rawThresholds.move.toFixed(3)} (T_move)`;
+    if (lblStill) lblStill.textContent = `Ngưỡng Yên Tĩnh: ${rawThresholds.still.toFixed(3)} (T_still)`;
+  }
+}
+
+function getNiceMax(val) {
+  if (val <= 0.05) return 0.05;
+  if (val <= 0.10) return 0.10;
+  if (val <= 0.15) return 0.15;
+  if (val <= 0.20) return 0.20;
+  if (val <= 0.25) return 0.25;
+  if (val <= 0.30) return 0.30;
+  if (val <= 0.40) return 0.40;
+  if (val <= 0.50) return 0.50;
+  if (val <= 0.60) return 0.60;
+  if (val <= 0.80) return 0.80;
+  if (val <= 1.00) return 1.00;
+  return Math.ceil(val * 2) / 2;
+}
+
+function drawHistoryChart() {
+  const canvas = $('#history-chart');
+  if (!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = rect.width;
+  const h = rect.height;
+
+  if (w <= 0 || h <= 0) return;
+
+  const targetW = Math.floor(w * dpr);
+  const targetH = Math.floor(h * dpr);
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width = targetW;
+    canvas.height = targetH;
+  }
+
+  const ctx = canvas.getContext('2d');
+  ctx.save();
+  ctx.scale(dpr, dpr);
+
+  // Background
+  ctx.fillStyle = '#080e16';
+  ctx.fillRect(0, 0, w, h);
+
+  const padLeft = 52;
+  const padRight = 16;
+  const padTop = 20;
+  const padBottom = 26;
+  const plotW = w - padLeft - padRight;
+  const plotH = h - padTop - padBottom;
+  const now = Date.now();
+  const firstT = now - HISTORY_WINDOW_MS;
+
+  if (chartMode === 'mapped') {
+    // Mode 0 - 100
+    const ySteps = [0, 25, 50, 75, 100];
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#121f2d';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'right';
+
+    ySteps.forEach(val => {
+      const y = padTop + plotH * (1 - val / 100);
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(w - padRight, y);
+      ctx.stroke();
+      ctx.fillText(val.toString(), padLeft - 8, y + 3);
+    });
+
+    // Vertical Time Grid (-30s, -20s, -10s, Now)
+    [-30, -20, -10, 0].forEach(sec => {
+      const x = padLeft + plotW * (1 + sec / 30);
+      ctx.beginPath();
+      ctx.strokeStyle = '#121f2d';
+      ctx.moveTo(x, padTop);
+      ctx.lineTo(x, padTop + plotH);
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = sec === 0 ? '#38bdf8' : '#64748b';
+      ctx.fillText(sec === 0 ? 'Hiện tại' : sec + 's', x, h - 8);
+    });
+
+    // Threshold Dashed Lines
+    const drawTh = (val, color, label) => {
+      if (val < 0 || val > 100) return;
+      const y = padTop + plotH * (1 - val / 100);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(w - padRight, y);
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.fillStyle = color;
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, padLeft + 6, y - 4);
+      ctx.restore();
+    };
+
+    drawTh(mappedThresholds.spike, '#ef4444', `T_spike (${mappedThresholds.spike})`);
+    drawTh(mappedThresholds.move, '#f59e0b', `T_move (${mappedThresholds.move})`);
+    drawTh(mappedThresholds.still, '#10b981', `T_still (${mappedThresholds.still})`);
+
+    // Plot Data Line
+    if (historyData.length >= 2) {
+      const grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
+      grad.addColorStop(0, 'rgba(56, 189, 248, 0.28)');
+      grad.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
+
+      // Area fill
+      ctx.beginPath();
+      let started = false;
+      let lastX = padLeft;
+
+      for (let i = 0; i < historyData.length; i++) {
+        const pt = historyData[i];
+        if (pt.t < firstT) continue;
+        const x = padLeft + ((pt.t - firstT) / HISTORY_WINDOW_MS) * plotW;
+        const y = padTop + plotH * (1 - Math.min(100, Math.max(0, pt.score)) / 100);
+
+        if (!started) {
+          ctx.moveTo(x, padTop + plotH);
+          ctx.lineTo(x, y);
+          started = true;
+        } else {
+          ctx.lineTo(x, y);
+        }
+        lastX = x;
+      }
+      if (started) {
+        ctx.lineTo(lastX, padTop + plotH);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+
+      // Stroke Line
+      ctx.beginPath();
+      started = false;
+      for (let i = 0; i < historyData.length; i++) {
+        const pt = historyData[i];
+        if (pt.t < firstT) continue;
+        const x = padLeft + ((pt.t - firstT) / HISTORY_WINDOW_MS) * plotW;
+        const y = padTop + plotH * (1 - Math.min(100, Math.max(0, pt.score)) / 100);
+
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else {
+          ctx.lineTo(x, y);
+        }
+
+        if (pt.event === 'ALERT' || pt.event === 'SPIKE') {
+          ctx.save();
+          ctx.fillStyle = pt.event === 'ALERT' ? '#ef4444' : '#f97316';
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#0284c7';
+      ctx.shadowBlur = 6;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#475569';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Đang tích lũy chuỗi dữ liệu 30s...', padLeft + plotW / 2, padTop + plotH / 2);
+    }
+  } else {
+    // Mode 'raw': Raw M(t)
+    // Dynamic Y-axis scale based on max raw value and spike threshold
+    let peak = (rawThresholds.spike || 0.18) * 1.35;
+    for (let i = 0; i < historyData.length; i++) {
+      const pt = historyData[i];
+      if (pt.t >= firstT && pt.raw != null && pt.raw > peak) {
+        peak = pt.raw;
+      }
+    }
+    const yMax = getNiceMax(peak * 1.1);
+
+    // 5 Horizontal Grid lines
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#121f2d';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'right';
+
+    const ySteps = [0, yMax * 0.25, yMax * 0.5, yMax * 0.75, yMax];
+    ySteps.forEach(val => {
+      const y = padTop + plotH * (1 - val / yMax);
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(w - padRight, y);
+      ctx.stroke();
+      ctx.fillText(val.toFixed(val >= 0.1 ? 2 : 3), padLeft - 8, y + 3);
+    });
+
+    // Vertical Time Grid
+    [-30, -20, -10, 0].forEach(sec => {
+      const x = padLeft + plotW * (1 + sec / 30);
+      ctx.beginPath();
+      ctx.strokeStyle = '#121f2d';
+      ctx.moveTo(x, padTop);
+      ctx.lineTo(x, padTop + plotH);
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = sec === 0 ? '#38bdf8' : '#64748b';
+      ctx.fillText(sec === 0 ? 'Hiện tại' : sec + 's', x, h - 8);
+    });
+
+    // Draw Raw Threshold Dashed Lines
+    const drawRawTh = (val, color, label) => {
+      if (val < 0 || val > yMax) return;
+      const y = padTop + plotH * (1 - val / yMax);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(w - padRight, y);
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.fillStyle = color;
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, padLeft + 6, y - 4);
+      ctx.restore();
+    };
+
+    drawRawTh(rawThresholds.spike, '#ef4444', `T_spike (${rawThresholds.spike.toFixed(3)})`);
+    drawRawTh(rawThresholds.move, '#f59e0b', `T_move (${rawThresholds.move.toFixed(3)})`);
+    drawRawTh(rawThresholds.still, '#10b981', `T_still (${rawThresholds.still.toFixed(3)})`);
+
+    // Plot Raw Data Line
+    if (historyData.length >= 2) {
+      const grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
+      grad.addColorStop(0, 'rgba(56, 189, 248, 0.28)');
+      grad.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
+
+      // Area fill
+      ctx.beginPath();
+      let started = false;
+      let lastX = padLeft;
+
+      for (let i = 0; i < historyData.length; i++) {
+        const pt = historyData[i];
+        if (pt.t < firstT) continue;
+        const val = pt.raw != null ? pt.raw : 0;
+        const x = padLeft + ((pt.t - firstT) / HISTORY_WINDOW_MS) * plotW;
+        const y = padTop + plotH * (1 - Math.min(yMax, Math.max(0, val)) / yMax);
+
+        if (!started) {
+          ctx.moveTo(x, padTop + plotH);
+          ctx.lineTo(x, y);
+          started = true;
+        } else {
+          ctx.lineTo(x, y);
+        }
+        lastX = x;
+      }
+      if (started) {
+        ctx.lineTo(lastX, padTop + plotH);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+
+      // Stroke Line
+      ctx.beginPath();
+      started = false;
+      for (let i = 0; i < historyData.length; i++) {
+        const pt = historyData[i];
+        if (pt.t < firstT) continue;
+        const val = pt.raw != null ? pt.raw : 0;
+        const x = padLeft + ((pt.t - firstT) / HISTORY_WINDOW_MS) * plotW;
+        const y = padTop + plotH * (1 - Math.min(yMax, Math.max(0, val)) / yMax);
+
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else {
+          ctx.lineTo(x, y);
+        }
+
+        if (pt.event === 'ALERT' || pt.event === 'SPIKE') {
+          ctx.save();
+          ctx.fillStyle = pt.event === 'ALERT' ? '#ef4444' : '#f97316';
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#0284c7';
+      ctx.shadowBlur = 6;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#475569';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Đang tích lũy chuỗi dữ liệu 30s...', padLeft + plotW / 2, padTop + plotH / 2);
+    }
+  }
+
+  ctx.restore();
+}
+
+// 60FPS Animation Loop for smooth chart rendering
+function animationFrame() {
+  drawHistoryChart();
+  requestAnimationFrame(animationFrame);
+}
+requestAnimationFrame(animationFrame);
+
+/* --------------------------------------------------------------------------
+   5. SAFE FALL TEST FLOW WITH 3-2-1 AUDIO COUNTDOWN
+   -------------------------------------------------------------------------- */
+const TEST_DESCRIPTIONS = {
+  walk: {
+    name: 'Đi lại bình thường',
+    action: 'HÃY ĐỨNG DẬY VÀ ĐI LẠI QUANH PHÒNG',
+    desc: 'Kiểm tra FSM ghi nhận MOVING, không báo ngã'
+  },
+  sit: {
+    name: 'Ngồi xuống ghế',
+    action: 'HÃY NGỒI XUỐNG GHẾ TỰ NHIÊN',
+    desc: 'Hạ thấp người có chủ đích, không ngã'
+  },
+  lie: {
+    name: 'Nằm xuống chủ động',
+    action: 'HÃY TỪ TỪ NẰM XUỐNG NỆM/SÀN',
+    desc: 'Nằm từ từ xuống giường, không tạo xung va đập'
+  },
+  fall: {
+    name: 'Mô phỏng té ngã lên nệm',
+    action: 'HÃY TÉ NGÃ LÊN NỆM MỀM AN TOÀN NGAY!',
+    desc: 'Mô phỏng ngã lên nệm mềm an toàn để test còi'
+  },
+  exit_room: {
+    name: 'Đi ra khỏi phòng / Rời vùng đo',
+    action: 'HÃY ĐI TỪ TỪ HOẶC ĐI NHANH RA NGOÀI PHÒNG',
+    desc: 'Đi từ từ hoặc đi nhanh ra ngoài phòng để kiểm tra hệ thống có bị báo động giả ngã không'
+  },
+  fast_walk_stop: {
+    name: 'Đi nhanh rồi dừng lại',
+    action: 'HÃY ĐI NHANH, DẬM CHÂN MẠNH RỒI DỪNG ĐỨNG YÊN',
+    desc: 'Đi nhanh, dậm chân mạnh rồi dừng đứng yên để kiểm tra phân biệt nhịp bước chân với ngã'
+  },
+  stumble: {
+    name: 'Vấp trượt / Loạng choạng',
+    action: 'HÃY MÔ PHỎNG HỤT CHÂN HOẶC NGÃ CÓ ĐỆM ĐỠ AN TOÀN',
+    desc: 'Mô phỏng hụt chân hoặc ngã có đệm đỡ an toàn'
+  }
+};
+
+function selectTestScenario(type, cardEl) {
+  currentSelectedTest = type;
+  $$('.test-option-card').forEach(c => c.classList.remove('selected'));
+  if (cardEl) {
+    cardEl.classList.add('selected');
+  } else {
+    const el = $('#test-option-' + type);
+    if (el) el.classList.add('selected');
+  }
+  sendTelemetryEvent('ui.test.scenario_select', 'test-option-' + type, { scenario: type });
+}
+
+async function startSafeFallTest() {
+  ensureAudioContext();
+  if (activeRunId || testCountdownInterval || testTimerInterval) {
+    await abortSafeFallTest('restart_new_test');
+  }
+
+  emitTelemetry('ui.test.start_requested', 'btn-start-test', { scenario: currentSelectedTest }, true);
+
+  try {
+    const res = await fetch('/api/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scenario: currentSelectedTest,
+        requested_duration_s: 15
+      })
+    });
+    if (!res.ok) {
+      const errText = (await res.text()) || res.statusText;
+      showToast('Không thể tạo phiên test: ' + errText, 'error');
+      emitTelemetry('ui.test.run_create_failed', 'btn-start-test', { status: res.status, error: errText }, true);
+      return;
+    }
+    const data = await res.json();
+    activeRunId = data.run_id;
+    fallbackRunId = data.run_id;
+    emitTelemetry('ui.test.run_created', 'btn-start-test', { run_id: activeRunId, scenario: currentSelectedTest }, true);
+  } catch (err) {
+    showToast('Lỗi mạng khi khởi tạo test: ' + err.message, 'error');
+    return;
+  }
+
+  const info = TEST_DESCRIPTIONS[currentSelectedTest] || TEST_DESCRIPTIONS.walk;
+  $('#test-modal-scenario-name').textContent = 'BÀI TEST: ' + info.name.toUpperCase();
+  $('#test-modal-box').style.maxWidth = '480px';
+
+  $('#modal-test-overlay').classList.add('active');
+  $('#test-countdown-view').style.display = 'block';
+  $('#test-recording-view').style.display = 'none';
+  $('#test-result-view').style.display = 'none';
+
+  if (testCountdownInterval) {
+    clearInterval(testCountdownInterval);
+    testCountdownInterval = null;
+  }
+
+  let count = 3;
+  $('#test-countdown-num').textContent = count;
+  $('#test-countdown-num').style.color = 'var(--text-main)';
+  $('#test-countdown-label').textContent = 'CHUẨN BỊ';
+  playBeep(480, 0.09);
+  emitTelemetry('ui.test.countdown_tick', 'countdown', { tick: count, run_id: activeRunId });
+
+  testCountdownInterval = setInterval(async () => {
+    count--;
+    if (count > 0) {
+      $('#test-countdown-num').textContent = count;
+      $('#test-countdown-label').textContent = 'SẴN SÀNG';
+      playBeep(480, 0.09);
+      emitTelemetry('ui.test.countdown_tick', 'countdown', { tick: count, run_id: activeRunId });
+    } else {
+      clearInterval(testCountdownInterval);
+      testCountdownInterval = null;
+      $('#test-countdown-num').textContent = 'GO!';
+      $('#test-countdown-num').style.color = '#fbbf24';
+      $('#test-countdown-label').textContent = 'HÀNH ĐỘNG!';
+      playBeep(960, 0.35, 'triangle');
+      emitTelemetry('ui.test.go', 'countdown_go', { run_id: activeRunId }, true);
+
+      if (activeRunId) {
+        try {
+          const res = await fetch(`/api/runs/${activeRunId}/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+          });
+          if (!res.ok) {
+            const errText = (await res.text()) || res.statusText;
+            showToast('Không thể bắt đầu phiên test: ' + errText, 'error');
+            await abortSafeFallTest('start_failed');
+            return;
+          }
+        } catch (e) {
+          console.warn('Start run error:', e);
+          showToast('Lỗi kết nối khi bắt đầu bài test: ' + e.message, 'error');
+          await abortSafeFallTest('start_failed');
+          return;
+        }
+      } else {
+        showToast('Không tìm thấy phiên test hợp lệ', 'error');
+        await abortSafeFallTest('start_failed');
+        return;
+      }
+
+      setTimeout(() => {
+        if ($('#modal-test-overlay').classList.contains('active')) {
+          enterTestRecordingPhase();
+        }
+      }, 500);
+    }
+  }, 1000);
+}
+
+function enterTestRecordingPhase() {
+  if (!activeRunId) return;
+  const info = TEST_DESCRIPTIONS[currentSelectedTest] || TEST_DESCRIPTIONS.walk;
+  $('#test-countdown-view').style.display = 'none';
+  $('#test-recording-view').style.display = 'block';
+  $('#test-live-action-text').textContent = info.action;
+
+  testRemainingTime = 15;
+  testHighestFsm = 'NORMAL';
+  $('#test-remain-sec').textContent = testRemainingTime.toFixed(1) + 's';
+
+  emitTelemetry('ui.test.recording_started', 'test_recording', { run_id: activeRunId, scenario: currentSelectedTest }, true);
+
+  if (testTimerInterval) clearInterval(testTimerInterval);
+  testTimerInterval = setInterval(() => {
+    testRemainingTime -= 0.1;
+    if (testRemainingTime <= 0) {
+      clearInterval(testTimerInterval);
+      testTimerInterval = null;
+      finishTestRecording();
+    } else {
+      $('#test-remain-sec').textContent = Math.max(0, testRemainingTime).toFixed(1) + 's';
+      $('#test-fsm-status-stream').textContent = clientFsmState;
+      if (clientFsmState === 'FALL_ALERT') {
+        $('#test-fsm-status-stream').style.color = '#ef4444';
+      } else if (clientFsmState === 'CANDIDATE') {
+        $('#test-fsm-status-stream').style.color = '#f97316';
+      } else if (clientFsmState === 'MOVING') {
+        $('#test-fsm-status-stream').style.color = '#fbbf24';
+      } else {
+        $('#test-fsm-status-stream').style.color = '#34d399';
+      }
+    }
+  }, 100);
+}
+
+async function finishTestRecording() {
+  if (testTimerInterval) {
+    clearInterval(testTimerInterval);
+    testTimerInterval = null;
+  }
+
+  emitTelemetry('ui.test.recording_finishing', 'btn-finish-recording', {
+    run_id: activeRunId,
+    highest_fsm: testHighestFsm
+  }, true);
+
+  const currentRun = activeRunId;
+  if (currentRun) {
+    try {
+      await fetch(`/api/runs/${currentRun}/stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+    } catch (e) {
+      console.warn('Stop run error:', e);
+    }
+  }
+
+  $('#test-recording-view').style.display = 'none';
+  $('#test-result-view').style.display = 'block';
+
+  const info = TEST_DESCRIPTIONS[currentSelectedTest] || TEST_DESCRIPTIONS.walk;
+  $('#res-scenario-name').textContent = info.name;
+  $('#res-fsm-decision').textContent = testHighestFsm === 'FALL_ALERT' ? '🚨 PHÁT HIỆN TÉ NGÃ' : '✓ KHÔNG CÓ BÁO ĐỘNG NGÃ';
+  $('#res-fsm-decision').style.color = testHighestFsm === 'FALL_ALERT' ? '#ef4444' : '#34d399';
+
+  const defVal = currentSelectedTest === 'fall' ? 'fall' : 'normal';
+  const radio = document.querySelector(`input[name="groundtruth"][value="${defVal}"]`);
+  if (radio) radio.checked = true;
+  $('#txt-gt-note').value = '';
+}
+
+async function abortSafeFallTest(reason = "user_aborted") {
+  if (testCountdownInterval) {
+    clearInterval(testCountdownInterval);
+    testCountdownInterval = null;
+  }
+  if (testTimerInterval) {
+    clearInterval(testTimerInterval);
+    testTimerInterval = null;
+  }
+
+  const runToCancel = activeRunId;
+  activeRunId = null;
+
+  if (runToCancel) {
+    emitTelemetry('ui.test.cancel_requested', 'btn-cancel-test', { run_id: runToCancel, reason: reason }, true);
+    try {
+      const cancelRes = await fetch(`/api/runs/${runToCancel}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason || 'user_aborted' })
+      });
+      if (cancelRes.status === 409) {
+        await fetch(`/api/runs/${runToCancel}/label`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            actual_activity: currentSelectedTest,
+            verdict: 'uncertain',
+            note: 'Test aborted by user (' + reason + ')'
+          })
+        });
+      }
+    } catch (e) {
+      console.warn('Cancel run error:', e);
+    }
+  }
+
+  $('#modal-test-overlay').classList.remove('active');
+  addEventLog('[TEST ĐÃ HỦY] Người dùng đã dừng bài thử nghiệm té ngã (' + reason + ').');
+}
+
+async function saveGroundTruthAndClose() {
+  const checked = document.querySelector('input[name="groundtruth"]:checked');
+  const truth = checked ? checked.value : 'normal';
+  const note = ($('#txt-gt-note').value || '').trim();
+
+  const actual_activity = truth === 'fall' ? 'fall' : (truth === 'normal' ? currentSelectedTest : 'uncertain');
+  let verdict = 'correct';
+  if (truth === 'fall') {
+    verdict = testHighestFsm === 'FALL_ALERT' ? 'correct' : 'false_negative';
+  } else if (truth === 'normal') {
+    verdict = testHighestFsm === 'FALL_ALERT' ? 'false_positive' : 'correct';
+  } else {
+    verdict = 'uncertain';
+  }
+
+  const runToLabel = activeRunId;
+  activeRunId = null;
+
+  emitTelemetry('ui.test.label_submitted', 'btn-apply-groundtruth', {
+    run_id: runToLabel,
+    truth: truth,
+    actual_activity: actual_activity,
+    verdict: verdict,
+    note: note
+  }, true);
+
+  if (runToLabel) {
+    try {
+      await fetch(`/api/runs/${runToLabel}/label`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          actual_activity: actual_activity,
+          verdict: verdict,
+          note: note
+        })
+      });
+    } catch (e) {
+      console.warn('Label run error:', e);
+    }
+  }
+
+  $('#modal-test-overlay').classList.remove('active');
+  const scenarioInfo = TEST_DESCRIPTIONS[currentSelectedTest] || { name: currentSelectedTest };
+  $('#test-run-status').innerHTML = `Lượt test gần nhất: <strong>${scenarioInfo.name}</strong> · FSM: <strong>${testHighestFsm}</strong> · Ground truth: <strong>${truth}</strong>`;
+  addEventLog(`[TEST HOÀN TẤT] Bài test: ${currentSelectedTest}, Thực tế: ${truth} (${verdict}), FSM: ${testHighestFsm}`);
+}
+
+/* --------------------------------------------------------------------------
+   4. CALIBRATION WIZARD (3 STEPS)
+   -------------------------------------------------------------------------- */
+function openCalibrationWizard() {
+  ensureAudioContext();
+  emitTelemetry('ui.calib.modal_open', 'btn-open-calib', {});
+  $('#modal-calib-wizard').classList.add('active');
+  resetCalibrationWizardState();
+  goToCalibStep(1);
+}
+
+function closeCalibrationWizard() {
+  emitTelemetry('ui.calib.modal_close', 'btn-close-calib', { step: calibStep });
+  if (calibInterval || calibStep === 1 || calibStep === 2) {
+    if (calibInterval) {
+      clearInterval(calibInterval);
+      calibInterval = null;
+    }
+    apiCall('/api/calibrate/stop', {}).catch(() => {});
+  }
+  $('#modal-calib-wizard').classList.remove('active');
+}
+
+function resetCalibrationWizardState() {
+  if (calibInterval) {
+    clearInterval(calibInterval);
+    calibInterval = null;
+  }
+  calibStep = 1;
+  $('#btn-calib-start-1').disabled = false;
+  $('#btn-calib-start-1').textContent = 'Bắt Đầu Đo Nền (15s)';
+  $('#calib-timer-1').textContent = '15s';
+  $('#calib-pbar-1').style.width = '0%';
+
+  $('#btn-calib-start-2').disabled = false;
+  $('#btn-calib-start-2').textContent = 'Bắt Đầu Đo Đi Lại (15s)';
+  $('#calib-timer-2').textContent = '15s';
+  $('#calib-pbar-2').style.width = '0%';
+
+  $('#calib-error-box').style.display = 'none';
+  $('#calib-success-content').style.display = 'block';
+}
+
+function goToCalibStep(step) {
+  calibStep = step;
+  [1, 2, 3].forEach(i => {
+    const p = $('#wpage-' + i);
+    const s = $('#wstep-' + i);
+    if (p) p.style.display = i === step ? 'block' : 'none';
+    if (s) {
+      s.classList.remove('active', 'completed');
+      if (i < step) s.classList.add('completed');
+      if (i === step) s.classList.add('active');
+    }
+  });
+}
+
+function runCalibStep1() {
+  emitTelemetry('ui.calib.step1_start', 'btn-calib-start-1', {}, true);
+  $('#btn-calib-start-1').disabled = true;
+  let sec = 15;
+  $('#calib-timer-1').textContent = sec + 's';
+  $('#calib-pbar-1').style.width = '0%';
+
+  // Instruct backend to start step 1 (clears calib buffers)
+  apiCall('/api/calibrate/start', { step: 1 });
+
+  calibInterval = setInterval(() => {
+    sec--;
+    $('#calib-timer-1').textContent = sec + 's';
+    $('#calib-pbar-1').style.width = (((15 - sec) / 15) * 100) + '%';
+
+    if (sec <= 0) {
+      clearInterval(calibInterval);
+      calibInterval = null;
+      playBeep(660, 0.15);
+      showToast('Bước 1 hoàn thành. Hãy chuẩn bị đi lại bình thường quanh phòng.', 'info');
+      emitTelemetry('ui.calib.step1_finish', 'calib_timer_1', {}, true);
+      goToCalibStep(2);
+    }
+  }, 1000);
+}
+
+function runCalibStep2() {
+  emitTelemetry('ui.calib.step2_start', 'btn-calib-start-2', {}, true);
+  $('#btn-calib-start-2').disabled = true;
+  let sec = 15;
+  $('#calib-timer-2').textContent = sec + 's';
+  $('#calib-pbar-2').style.width = '0%';
+
+  // Instruct backend to start step 2 (walk samples)
+  apiCall('/api/calibrate/start', { step: 2 });
+
+  calibInterval = setInterval(async () => {
+    sec--;
+    $('#calib-timer-2').textContent = sec + 's';
+    $('#calib-pbar-2').style.width = (((15 - sec) / 15) * 100) + '%';
+
+    if (sec <= 0) {
+      clearInterval(calibInterval);
+      calibInterval = null;
+      await finishCalibStep2();
+    }
+  }, 1000);
+}
+
+async function finishCalibStep2() {
+  $('#calib-timer-2').textContent = 'Đang tính toán...';
+  $('#calib-pbar-2').style.width = '100%';
+  emitTelemetry('ui.calib.step2_finishing', 'calib_step2', {}, true);
+
+  // Finish calibration: call /api/calibrate/stop with empty body (NO fake thresholds!)
+  // Backend calculates real raw thresholds from collected CSI samples
+  const res = await apiCall('/api/calibrate/stop', {});
+
+  if (res.ok) {
+    playBeep(880, 0.25);
+    const th = (res.state && res.state.fsm && res.state.fsm.thresholds) ||
+               (state && state.fsm && state.fsm.thresholds) ||
+               rawThresholds;
+
+    if (th) {
+      rawThresholds = {
+        still: Number(th.still),
+        move: Number(th.move),
+        spike: Number(th.spike)
+      };
+    }
+
+    // Populate Step 3
+    $('#calib-error-box').style.display = 'none';
+    $('#calib-success-content').style.display = 'block';
+
+    $('#res-t-still').textContent = Number(rawThresholds.still).toFixed(4);
+    $('#res-t-move').textContent = Number(rawThresholds.move).toFixed(4);
+    $('#res-t-spike').textContent = Number(rawThresholds.spike).toFixed(4);
+
+    updateCalibrationSummaryUI();
+    updateChartLegend();
+    goToCalibStep(3);
+    emitTelemetry('ui.calib.completed', 'calib_step3', { thresholds: rawThresholds }, true);
+    addEventLog(`[HIỆU CHUẨN XONG] Ngưỡng thô mới: T_still=${rawThresholds.still.toFixed(4)}, T_move=${rawThresholds.move.toFixed(4)}, T_spike=${rawThresholds.spike.toFixed(4)}`);
+  } else {
+    playBeep(330, 0.3, 'sawtooth');
+    $('#calib-error-box').style.display = 'block';
+    $('#calib-success-content').style.display = 'none';
+    $('#calib-error-msg').textContent = res.error || 'Máy chủ không thể tính toán bộ ngưỡng (cần ít nhất 5 mẫu tĩnh và 5 mẫu di chuyển). Vui lòng thử lại khi cổng RX đang kết nối và có luồng sóng.';
+    goToCalibStep(3);
+    emitTelemetry('ui.calib.failed', 'calib_step3', { error: res.error }, true);
+  }
+}
+
+function applyCalibrationResults() {
+  emitTelemetry('ui.calib.applied', 'btn-apply-calib', { thresholds: rawThresholds }, true);
+  // Backend already activated the new thresholds upon /api/calibrate/stop
+  closeCalibrationWizard();
+  showToast('Bộ ngưỡng thích ứng mới đã được áp dụng vào hệ thống!', 'success');
+}
+
+/* --------------------------------------------------------------------------
+   MANUAL RECORDING CONTROLS
+   -------------------------------------------------------------------------- */
+function startManualRecord() {
+  let name = val('rec-name');
+  if (!name) {
+    const ts = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+    name = 'rec_' + ts;
+    $('#rec-name').value = name;
+  }
+  emitTelemetry('ui.record.start_requested', 'btn-rec-start', { name: name }, true);
+  apiCall('/api/record/start', { name, notes: 'Thủ công từ web dashboard' });
+}
+
+function stopManualRecord() {
+  emitTelemetry('ui.record.stop_requested', 'btn-rec-stop', {}, true);
+  apiCall('/api/record/stop', {});
+}
+
+/* --------------------------------------------------------------------------
+   EVENT LOG TERMINAL HELPER
+   -------------------------------------------------------------------------- */
+const eventLogs = [];
+function addEventLog(text) {
+  const ts = new Date().toTimeString().slice(0, 8);
+  eventLogs.push(`[${ts}] ${text}`);
+  if (eventLogs.length > 80) eventLogs.shift();
+
+  const term = $('#terminal-events');
+  if (term) {
+    term.textContent = eventLogs.join('\n');
+    term.scrollTop = term.scrollHeight;
+  }
+  $('#event-summary-text').textContent = `${eventLogs.length} sự kiện`;
+}
+
+function clearEventLogs() {
+  eventLogs.length = 0;
+  $('#terminal-events').textContent = 'Chưa có sự kiện mới.';
+  $('#event-summary-text').textContent = '0 sự kiện';
+}
+
+/* --------------------------------------------------------------------------
+   MAIN STATE RENDERER
+   -------------------------------------------------------------------------- */
+function render(s) {
+  state = s;
+
+  // Header Mode / Badge
+  const badge = $('#conn-badge');
+  const badgeText = $('#conn-text');
+  const open = s.connection === 'open';
+
+  if (s.mode === 'REPLAY') {
+    badge.className = 'badge badge-replay';
+    badgeText.textContent = 'REPLAY ĐANG PHÁT';
+  } else if (open) {
+    badge.className = 'badge badge-live';
+    badgeText.textContent = 'LIVE · ĐANG KẾT NỐI';
+  } else {
+    badge.className = 'badge badge-disconnected';
+    badgeText.textContent = 'MẤT KẾT NỐI';
+  }
+
+  // Tech Metrics Grid
+  $('#lbl-rx-rate').textContent = (s.rx_rate_hz || 0) + ' Hz';
+  $('#lbl-sample-age').textContent = s.last_sample_age_ms != null ? s.last_sample_age_ms + ' ms' : '—';
+  $('#lbl-seq-gaps').textContent = s.sequence_gaps || 0;
+  $('#lbl-frame-err').textContent = s.frame_errors || 0;
+
+  const queueDrops = s.stats && s.stats.queue_full !== undefined ? (s.stats.queue_full + s.stats.oversize) : 0;
+  $('#lbl-drops').textContent = queueDrops + (s.host_record_drops ? ` (+${s.host_record_drops})` : '');
+  $('#lbl-pair').textContent = 'Pair ' + (s.selected_pair != null ? s.selected_pair : '2');
+
+  // Fill hardware MACs if available
+  if (s.rx_mac && !val('txt-rx-mac')) $('#txt-rx-mac').value = s.rx_mac;
+  if (s.source_mac && !val('txt-tx-mac')) $('#txt-tx-mac').value = s.source_mac;
+
+  // Update Recording status indicator
+  const recEl = $('#rec-status-indicator');
+  if (s.recording) {
+    recEl.innerHTML = `<span style="color:#ef4444; font-weight:700;">● ĐANG GHI:</span> ${s.recording}`;
+  } else if (s.recording_status && s.recording_status.state === 'complete') {
+    recEl.innerHTML = `<span style="color:#10b981; font-weight:700;">✓ HOÀN THÀNH:</span> ${s.recording_status.name}`;
+  } else {
+    recEl.textContent = 'Trạng thái ghi: Sẵn sàng.';
+  }
+
+  // Update Hardware & DSP
+  updateHardwareButtons();
+  updateDSPAndFSM(s);
+  updateTelemetryChips(s);
+
+  // Sync server events if provided
+  if (s.events && s.events.length) {
+    const lastEvent = s.events[s.events.length - 1];
+    if (lastEvent.type && lastEvent._rendered !== true) {
+      lastEvent._rendered = true;
+      if (lastEvent.type === 'marker') {
+        addEventLog(`[MARKER] ${lastEvent.kind}: ${lastEvent.note || ''}`);
+      } else if (lastEvent.type === 'empty_room_captured') {
+        addEventLog('[PHÒNG TRỐNG] Máy chủ xác nhận: Đã hoàn tất lấy mẫu và lưu baseline phòng trống.');
+      } else if (lastEvent.type.includes('error')) {
+        addEventLog(`[LỖI] ${lastEvent.type}: ${lastEvent.message || ''}`);
+      }
+    }
+  }
+}
+
+/* --------------------------------------------------------------------------
+   WEBSOCKET CLIENT
+   -------------------------------------------------------------------------- */
+function initWs() {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(protocol + '//' + location.host + '/ws');
+
+  ws.onopen = () => {
+    $('#message-bar').style.display = 'none';
+  };
+
+  ws.onmessage = e => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'state') {
+        render(msg.state);
+      }
+    } catch (err) {
+      console.error('Lỗi phân tích WebSocket payload:', err);
+    }
+  };
+
+  ws.onclose = () => {
+    showToast('Đang kết nối lại luồng dữ liệu thời gian thực...', 'warning');
+    setTimeout(initWs, 1500);
+  };
+}
+
+/* --------------------------------------------------------------------------
+   INITIALIZATION & EVENT LISTENERS
+   -------------------------------------------------------------------------- */
+$('#chk-verify-mac').addEventListener('change', () => {
+  emitTelemetry('ui.config.verify_mac_toggle', 'chk-verify-mac', { checked: $('#chk-verify-mac').checked });
+  updateHardwareButtons();
+});
+$('#sel-port').addEventListener('change', () => {
+  emitTelemetry('ui.serial.port_changed', 'sel-port', { port: $('#sel-port').value });
+  updateHardwareButtons();
+});
+$('#txt-rx-mac').addEventListener('input', updateHardwareButtons);
+$('#txt-tx-mac').addEventListener('input', updateHardwareButtons);
+
+// Ground truth radio change tracking
+$$('input[name="groundtruth"]').forEach(r => {
+  r.addEventListener('change', (e) => {
+    emitTelemetry('ui.test.groundtruth_changed', 'radio-groundtruth', { value: e.target.value });
+  });
+});
+
+// Modal backdrop click-to-close
+const calibModalEl = $('#modal-calib-wizard');
+if (calibModalEl) {
+  calibModalEl.addEventListener('click', (e) => {
+    if (e.target === calibModalEl) {
+      closeCalibrationWizard();
+    }
+  });
+}
+
+const testModalEl = $('#modal-test-overlay');
+if (testModalEl) {
+  testModalEl.addEventListener('click', (e) => {
+    if (e.target === testModalEl) {
+      abortSafeFallTest('backdrop_click');
+    }
+  });
+}
+
+// ESC key to close active modals
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    if (calibModalEl && calibModalEl.classList.contains('active')) {
+      closeCalibrationWizard();
+    }
+    if (testModalEl && testModalEl.classList.contains('active')) {
+      abortSafeFallTest('esc_key');
+    }
+  }
+});
+
+window.addEventListener('resize', () => {
+  drawHistoryChart();
+});
+
+// Initial state fetch, ports & latest run discovery
+fetchLatestRunId();
+fetch('/api/state')
+  .then(r => r.json())
+  .then(render)
+  .catch(e => console.warn('Fetch state ban đầu chờ WebSocket', e));
+
+fetchPorts();
+initWs();
+</script>
+</body>
+</html>

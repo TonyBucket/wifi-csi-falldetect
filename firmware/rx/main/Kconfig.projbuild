@@ -1,0 +1,9 @@
+menu "CSI receiver"
+    config CSI_CHANNEL
+        int "Wi-Fi channel (must match transmitter)"
+        range 1 11
+        default 11
+    config CSI_EXPECTED_TX_MAC
+        string "Exact transmitter MAC (empty accepts either known board)"
+        default ""
+endmenu

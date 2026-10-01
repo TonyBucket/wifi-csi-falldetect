@@ -1,0 +1,93 @@
+{
+  "model_type": "decision_tree",
+  "version": "2.0.0",
+  "feature_names": [
+    "peak_energy",
+    "excess_energy",
+    "rise_time",
+    "decline_time",
+    "pdr",
+    "rise_decline_ratio",
+    "pc1_variance_ratio",
+    "pc2_variance_ratio",
+    "effective_rank",
+    "hler",
+    "torso_energy_ratio",
+    "spectral_entropy",
+    "envelope_kurtosis",
+    "post_pre_energy_ratio"
+  ],
+  "threshold": 0.5,
+  "tree": {
+    "is_leaf": false,
+    "feature_idx": 13,
+    "feature_name": "post_pre_energy_ratio",
+    "threshold": 0.875,
+    "left": {
+      "is_leaf": false,
+      "feature_idx": 0,
+      "feature_name": "peak_energy",
+      "threshold": 0.115,
+      "left": {
+        "is_leaf": true,
+        "value": 0,
+        "prob": 0.0,
+        "counts": [1, 0]
+      },
+      "right": {
+        "is_leaf": false,
+        "feature_idx": 10,
+        "feature_name": "torso_energy_ratio",
+        "threshold": 0.08,
+        "left": {
+          "is_leaf": true,
+          "value": 0,
+          "prob": 0.0,
+          "counts": [1, 0]
+        },
+        "right": {
+          "is_leaf": false,
+          "feature_idx": 4,
+          "feature_name": "pdr",
+          "threshold": 0.2,
+          "left": {
+            "is_leaf": true,
+            "value": 0,
+            "prob": 0.0,
+            "counts": [1, 0]
+          },
+          "right": {
+            "is_leaf": false,
+            "feature_idx": 7,
+            "feature_name": "pc2_variance_ratio",
+            "threshold": 0.25,
+            "left": {
+              "is_leaf": true,
+              "value": 1,
+              "prob": 1.0,
+              "counts": [0, 1]
+            },
+            "right": {
+              "is_leaf": true,
+              "value": 0,
+              "prob": 0.0,
+              "counts": [1, 0]
+            }
+          }
+        }
+      }
+    },
+    "right": {
+      "is_leaf": true,
+      "value": 0,
+      "prob": 0.0,
+      "counts": [1, 0]
+    }
+  },
+  "metrics": {
+    "total_samples": 20,
+    "fall_samples": 3,
+    "adl_samples": 17,
+    "train_accuracy": 1.0
+  }
+}

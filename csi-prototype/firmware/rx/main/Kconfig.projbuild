@@ -1,0 +1,6 @@
+menu "CSI receiver"
+    config CSI_CHANNEL
+        int "Wi-Fi channel"
+        range 1 11
+        default 11
+endmenu

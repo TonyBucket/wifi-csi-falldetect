@@ -1,0 +1,34 @@
+# Data, captures and databases
+data/*.csv
+data/*.jsonl
+csi-prototype/data/*.jsonl
+csi-prototype/data/*.csv
+**/data/recordings
+**/data/recordings/**
+**/*.db
+**/*.db-*
+**/*.db-wal
+**/*.db-shm
+
+# Python bytecode and environments
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.venv/
+**/.pytest_cache/
+
+# Runtime evidence / process logs
+evidence/*.pid
+evidence/*.log
+**/evidence/*.pid
+**/evidence/*.log
+
+# Firmware build directories and config backups
+**/build/
+**/.espidf/
+**/sdkconfig.old
+
+# OS / Editor temporary files
+.DS_Store
+*.swp
+*.swo
