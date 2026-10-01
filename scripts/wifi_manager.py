@@ -802,6 +802,10 @@ class PortalRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
+    def do_HEAD(self) -> None:
+        """Handle HEAD requests similarly to GET (used by some captive probes)."""
+        self.do_GET()
+
     def do_GET(self) -> None:
         path = urllib.parse.urlparse(self.path).path
 
