@@ -1,23 +1,23 @@
 """tests/test_wifi_manager.py
 
-Unit tests for wifi_manager.py
+Unit tests for wifi_manager.py using standard library unittest.
 """
 
 from __future__ import annotations
 
+import http.server
 import json
 import shutil
 import sys
 import tempfile
 import threading
 import time
+import unittest
 import urllib.request
 from pathlib import Path
 
 # Add project root to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-import pytest
 
 from scripts.wifi_manager import (
     DEFAULT_AP_IP,
@@ -89,171 +89,159 @@ iface wlp108s0 inet dhcp
 """
 
 
-def test_generate_hostapd_conf():
-    conf = generate_hostapd_conf("wlp108s0", "Dragonfly", "tonybucket0297", channel=6)
-    assert "interface=wlp108s0" in conf
-    assert "ssid=Dragonfly" in conf
-    assert "channel=6" in conf
-    assert "wpa=2" in conf
-    assert "wpa_passphrase=tonybucket0297" in conf
-    assert "rsn_pairwise=CCMP" in conf
+class TestWifiManager(unittest.TestCase):
+    def test_generate_hostapd_conf(self):
+        conf = generate_hostapd_conf("wlp108s0", "Dragonfly", "tonybucket0297", channel=6)
+        self.assertIn("interface=wlp108s0", conf)
+        self.assertIn("ssid=Dragonfly", conf)
+        self.assertIn("channel=6", conf)
+        self.assertIn("wpa=2", conf)
+        self.assertIn("wpa_passphrase=tonybucket0297", conf)
+        self.assertIn("rsn_pairwise=CCMP", conf)
 
+    def test_generate_dnsmasq_conf(self):
+        conf = generate_dnsmasq_conf("wlp108s0", "192.168.4.1", "192.168.4.10", "192.168.4.50")
+        self.assertIn("interface=wlp108s0", conf)
+        self.assertIn("dhcp-range=192.168.4.10,192.168.4.50", conf)
+        self.assertIn("address=/#/192.168.4.1", conf)
+        self.assertIn("bind-interfaces", conf)
 
-def test_generate_dnsmasq_conf():
-    conf = generate_dnsmasq_conf("wlp108s0", "192.168.4.1", "192.168.4.10", "192.168.4.50")
-    assert "interface=wlp108s0" in conf
-    assert "dhcp-range=192.168.4.10,192.168.4.50" in conf
-    assert "address=/#/192.168.4.1" in conf
-    assert "bind-interfaces" in conf
+    def test_parse_iw_scan(self):
+        nets = parse_iw_scan(SAMPLE_IW_SCAN)
+        self.assertEqual(len(nets), 3)  # Si Tha_5G (deduped), Free_Coffee_Shop, Modern_Home
 
+        # Sorted by signal descending
+        self.assertEqual(nets[0].ssid, "Si Tha_5G")
+        self.assertEqual(nets[0].signal_dbm, -34.00)
+        self.assertEqual(nets[0].security, "WPA2")
+        self.assertEqual(nets[0].freq, 5300)
+        self.assertGreater(nets[0].signal_percent, 80)
 
-def test_parse_iw_scan():
-    nets = parse_iw_scan(SAMPLE_IW_SCAN)
-    assert len(nets) == 3  # Si Tha_5G (deduped), Free_Coffee_Shop, Modern_Home. Empty SSID ignored.
+        # Modern_Home has SAE (WPA3)
+        modern = next(n for n in nets if n.ssid == "Modern_Home")
+        self.assertEqual(modern.security, "WPA3")
+        self.assertEqual(modern.signal_dbm, -45.00)
 
-    # Sorted by signal descending
-    assert nets[0].ssid == "Si Tha_5G"
-    assert nets[0].signal_dbm == -34.00
-    assert nets[0].security == "WPA2"
-    assert nets[0].freq == 5300
-    assert nets[0].signal_percent > 80
+        # Free_Coffee_Shop has no privacy/RSN -> Open
+        open_net = next(n for n in nets if n.ssid == "Free_Coffee_Shop")
+        self.assertEqual(open_net.security, "Open")
 
-    # Modern_Home has SAE (WPA3)
-    modern = next(n for n in nets if n.ssid == "Modern_Home")
-    assert modern.security == "WPA3"
-    assert modern.signal_dbm == -45.00
-
-    # Free_Coffee_Shop has no privacy/RSN -> Open
-    open_net = next(n for n in nets if n.ssid == "Free_Coffee_Shop")
-    assert open_net.security == "Open"
-
-
-def test_update_interfaces_content_existing():
-    updated = update_interfaces_content(
-        SAMPLE_INTERFACES,
-        "wlp108s0",
-        "NewOffice_5G",
-        "newsecret999",
-    )
-    assert "wpa-ssid NewOffice_5G" in updated
-    assert "wpa-psk  newsecret999" in updated
-    assert "OldNetwork" not in updated
-    assert "auto lo" in updated
-
-
-def test_update_interfaces_content_new_iface():
-    minimal = "auto lo\niface lo inet loopback\n"
-    updated = update_interfaces_content(
-        minimal,
-        "wlan0",
-        "MyWifi",
-        "pass12345",
-    )
-    assert "allow-hotplug wlan0" in updated
-    assert "iface wlan0 inet dhcp" in updated
-    assert "wpa-ssid MyWifi" in updated
-    assert "wpa-psk  pass12345" in updated
-
-
-def test_portal_http_server():
-    """Test Web Portal HTTP endpoints on a temporary port."""
-    import http.server
-
-    PortalRequestHandler.dry_run = True
-    PortalRequestHandler.fsm = None
-    PortalRequestHandler.cached_networks = [
-        WifiNetwork("MockNet", "11:22:33:44:55:66", -50.0, 2412, "WPA2")
-    ]
-
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), PortalRequestHandler)
-    port = server.server_port
-
-    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
-    server_thread.start()
-
-    base_url = f"http://127.0.0.1:{port}"
-
-    try:
-        # 1. GET /
-        req = urllib.request.Request(f"{base_url}/")
-        with urllib.request.urlopen(req) as resp:
-            assert resp.status == 200
-            content = resp.read().decode("utf-8")
-            assert "Dragonfly Setup" in content
-
-        # 2. Captive portal probe: GET /generate_204 -> should redirect 302
-        req_captive = urllib.request.Request(f"{base_url}/generate_204")
-        # Disallow auto-redirect to inspect 302
-        opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler())
-
-        class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-            def http_error_302(self, req, fp, code, msg, headers):
-                return fp
-
-        custom_opener = urllib.request.build_opener(NoRedirectHandler)
-        res_redir = custom_opener.open(f"{base_url}/generate_204")
-        assert res_redir.getcode() == 302
-        assert res_redir.headers.get("Location") == f"http://{DEFAULT_AP_IP}/"
-
-        # 3. GET /api/status
-        with urllib.request.urlopen(f"{base_url}/api/status") as resp:
-            assert resp.status == 200
-            data = json.loads(resp.read().decode("utf-8"))
-            assert "mode" in data
-
-        # 4. GET /api/scan
-        with urllib.request.urlopen(f"{base_url}/api/scan") as resp:
-            assert resp.status == 200
-            data = json.loads(resp.read().decode("utf-8"))
-            assert "networks" in data
-            assert len(data["networks"]) > 0
-
-        # 5. POST /api/connect with valid payload
-        post_data = json.dumps({"ssid": "TestAP", "password": "pass"}).encode("utf-8")
-        req_post = urllib.request.Request(
-            f"{base_url}/api/connect",
-            data=post_data,
-            headers={"Content-Type": "application/json"},
+    def test_update_interfaces_content_existing(self):
+        updated = update_interfaces_content(
+            SAMPLE_INTERFACES,
+            "wlp108s0",
+            "NewOffice_5G",
+            "newsecret999",
         )
-        with urllib.request.urlopen(req_post) as resp:
-            assert resp.status == 200
-            res_json = json.loads(resp.read().decode("utf-8"))
-            assert res_json.get("status") in ["ok", "connecting"]
+        self.assertIn("wpa-ssid NewOffice_5G", updated)
+        self.assertIn("wpa-psk  newsecret999", updated)
+        self.assertNotIn("OldNetwork", updated)
+        self.assertIn("auto lo", updated)
 
-        # 6. POST /api/connect with missing SSID -> 400
-        bad_post = json.dumps({"ssid": "", "password": ""}).encode("utf-8")
-        req_bad = urllib.request.Request(
-            f"{base_url}/api/connect",
-            data=bad_post,
-            headers={"Content-Type": "application/json"},
+    def test_update_interfaces_content_new_iface(self):
+        minimal = "auto lo\niface lo inet loopback\n"
+        updated = update_interfaces_content(
+            minimal,
+            "wlan0",
+            "MyWifi",
+            "pass12345",
         )
+        self.assertIn("allow-hotplug wlan0", updated)
+        self.assertIn("iface wlan0 inet dhcp", updated)
+        self.assertIn("wpa-ssid MyWifi", updated)
+        self.assertIn("wpa-psk  pass12345", updated)
+
+    def test_portal_http_server(self):
+        PortalRequestHandler.dry_run = True
+        PortalRequestHandler.fsm = None
+        PortalRequestHandler.cached_networks = [
+            WifiNetwork("MockNet", "11:22:33:44:55:66", -50.0, 2412, "WPA2")
+        ]
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), PortalRequestHandler)
+        port = server.server_port
+
+        server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+
+        base_url = f"http://127.0.0.1:{port}"
+
         try:
-            urllib.request.urlopen(req_bad)
-            assert False, "Should have failed with 400"
-        except urllib.error.HTTPError as exc:
-            assert exc.code == 400
+            # 1. GET /
+            req = urllib.request.Request(f"{base_url}/")
+            with urllib.request.urlopen(req) as resp:
+                self.assertEqual(resp.status, 200)
+                content = resp.read().decode("utf-8")
+                self.assertIn("Dragonfly Setup", content)
 
-    finally:
-        server.shutdown()
-        server.server_close()
+            # 2. Captive portal probe: GET /generate_204 -> should redirect 302
+            class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+                def http_error_302(self, req, fp, code, msg, headers):
+                    return fp
+
+            custom_opener = urllib.request.build_opener(NoRedirectHandler)
+            res_redir = custom_opener.open(f"{base_url}/generate_204")
+            self.assertEqual(res_redir.getcode(), 302)
+            self.assertEqual(res_redir.headers.get("Location"), f"http://{DEFAULT_AP_IP}/")
+
+            # 3. GET /api/status
+            with urllib.request.urlopen(f"{base_url}/api/status") as resp:
+                self.assertEqual(resp.status, 200)
+                data = json.loads(resp.read().decode("utf-8"))
+                self.assertIn("mode", data)
+
+            # 4. GET /api/scan
+            with urllib.request.urlopen(f"{base_url}/api/scan") as resp:
+                self.assertEqual(resp.status, 200)
+                data = json.loads(resp.read().decode("utf-8"))
+                self.assertIn("networks", data)
+                self.assertGreater(len(data["networks"]), 0)
+
+            # 5. POST /api/connect with valid payload
+            post_data = json.dumps({"ssid": "TestAP", "password": "pass"}).encode("utf-8")
+            req_post = urllib.request.Request(
+                f"{base_url}/api/connect",
+                data=post_data,
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req_post) as resp:
+                self.assertEqual(resp.status, 200)
+                res_json = json.loads(resp.read().decode("utf-8"))
+                self.assertIn(res_json.get("status"), ["ok", "connecting"])
+
+            # 6. POST /api/connect with missing SSID -> 400
+            bad_post = json.dumps({"ssid": "", "password": ""}).encode("utf-8")
+            req_bad = urllib.request.Request(
+                f"{base_url}/api/connect",
+                data=bad_post,
+                headers={"Content-Type": "application/json"},
+            )
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                urllib.request.urlopen(req_bad)
+            self.assertEqual(ctx.exception.code, 400)
+
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_fsm_backup_and_interfaces(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_interfaces = Path(tmpdir) / "interfaces"
+            tmp_interfaces.write_text(SAMPLE_INTERFACES)
+
+            fsm = WifiManagerFSM(
+                interface="wlp108s0",
+                interfaces_file=str(tmp_interfaces),
+            )
+
+            bak = fsm.backup_interfaces()
+            self.assertIsNotNone(bak)
+            self.assertTrue(bak.exists())
+            self.assertIn("OldNetwork", bak.read_text())
+
+            symlink_bak = tmp_interfaces.with_name("interfaces.bak")
+            self.assertTrue(symlink_bak.exists())
 
 
-def test_fsm_backup_and_interfaces():
-    """Verify backup and update interface file handling."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_interfaces = Path(tmpdir) / "interfaces"
-        tmp_interfaces.write_text(SAMPLE_INTERFACES)
-
-        fsm = WifiManagerFSM(
-            interface="wlp108s0",
-            interfaces_file=str(tmp_interfaces),
-        )
-
-        bak = fsm.backup_interfaces()
-        assert bak is not None
-        assert bak.exists()
-        assert "OldNetwork" in bak.read_text()
-
-        # Symlink .bak should point to bak file
-        symlink_bak = tmp_interfaces.with_name("interfaces.bak")
-        assert symlink_bak.exists()
+if __name__ == "__main__":
+    unittest.main()
