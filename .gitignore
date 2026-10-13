@@ -1,6 +1,25 @@
-# Data, captures and databases
+# Binary media & documentation files
+media/
+*.docx
+*.pdf
+
+# Secrets and credentials
+SECRET_MUST_READ.md
+SECRET*.md
+secrets/
+.env
+.env.*
+*.key
+*.pem
+*.crt
+*.cert
+*.csr
+
+# Data, captures and telemetry databases
+data/
 data/*.csv
 data/*.jsonl
+csi-prototype/data/
 csi-prototype/data/*.jsonl
 csi-prototype/data/*.csv
 **/data/recordings
@@ -9,6 +28,10 @@ csi-prototype/data/*.csv
 **/*.db-*
 **/*.db-wal
 **/*.db-shm
+
+# ESP-IDF managed components & lock files
+**/managed_components/
+**/dependencies.lock
 
 # Python bytecode and environments
 **/__pycache__/
@@ -23,7 +46,7 @@ evidence/*.log
 **/evidence/*.pid
 **/evidence/*.log
 
-# Firmware build directories and config backups
+# Firmware build directories và config backups
 **/build/
 **/.espidf/
 **/sdkconfig.old
